@@ -1,8 +1,7 @@
 -- 💰 Brainrot Money Hunter - Priority Edition 💰
 -- ✅ يركز على سرقة الـ brainrots النقديّة ذات الأولوية
--- 🎯 بسيط، سريع، وفعال
+-- 🎯 بسيط، سريع، وفعال (نسخة نظيفة 100% لـ Delta)
 
-load([[
 -- الخدمات الأساسية
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -12,12 +11,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 -- 🔥 إعدادات السكربت
 local Config = {
     Enabled = true,
-    ScanInterval = 0.5, -- سرعة المسح (أسرع = أفضل)
-    MaxDistance = 100, -- مسافة البحث عن اللاعبين
-    DebugMode = true, -- لإظهار رسائل التنقيح
+    ScanInterval = 0.5,
+    MaxDistance = 100,
+    DebugMode = true,
 }
 
--- 🧠 قائمة الـ Brainrots الأساسية (سيتم البحث عن هذه الأسماء)
+-- 🧠 قائمة الـ Brainrots الأساسية
 local TargetBrainrots = {
     "Festive 67", "Esok Sekolah", "Bacuru and Egguru", "Headless Horseman",
     "noo my gold", "snailo colvero", "Dragon Cannelloni", "Gold Gold Gold",
@@ -33,140 +32,95 @@ local TargetBrainrots = {
     "Popcuro and Fizzuru", "Strawberry Elephant"
 }
 
--- 💰 قائمة الـ Brainrots النقديّة ذات الأولوية القصوى (تنتج 100m/s أو أكثر)
+-- 💰 قائمة الأولوية النقدية
 local PriorityMoneyBrainrots = {
-    "Money Money Puggy", -- غالباً ما يكون الأكثر ربحية
-    "Gold Gold Gold",
-    "noo my gold",
-    "la lucky grande",
-    "lavadorito spinito",
-    "Dragon Cannelloni", -- أحياناً يكون نقدياً
-    "Hydra Dragon", -- أحياناً يكون نقدياً
-    -- يمكنك إضافة أي أسماء أخرى تعرف أنها تنتج مالاً بكثرة هنا
+    "Money Money Puggy", "Gold Gold Gold", "noo my gold",
+    "la lucky grande", "lavadorito spinito", "Dragon Cannelloni",
+    "Hydra Dragon"
 }
 
--- 🎯 دالة للتحقق إذا كان الاسم هو brainrot مستهدف
+-- دالة التحقق
 function isTargetBrainrot(itemName)
     if not itemName or type(itemName) ~= "string" then return false end
-    
-    local lowerItemName = string.lower(itemName)
-    
-    for _, brainrot in pairs(TargetBrainrots) do
-        if string.lower(brainrot) == lowerItemName then
-            return true
-        end
+    local lower = string.lower(itemName)
+    for _, b in pairs(TargetBrainrots) do
+        if string.lower(b) == lower then return true end
     end
-    
     return false
 end
 
--- 💰 دالة للتحقق إذا كان الـ brainrot نقدياً (أولوية قصوى)
 function isPriorityMoneyBrainrot(itemName)
     if not itemName or type(itemName) ~= "string" then return false end
-    
-    local lowerItemName = string.lower(itemName)
-    
-    for _, moneyBrainrot in pairs(PriorityMoneyBrainrots) do
-        if string.lower(moneyBrainrot) == lowerItemName then
-            return true
-        end
+    local lower = string.lower(itemName)
+    for _, b in pairs(PriorityMoneyBrainrots) do
+        if string.lower(b) == lower then return true end
     end
-    
     return false
 end
 
--- 🚀 دالة لتنفيذ الترايده (مبسطة ومحسّنة)
+-- متغير عام للـ GUI (مُصلح)
+local PriorityCount = 0
+
+-- دالة الترايد
 function executeTrade(targetPlayer)
     if not targetPlayer or not targetPlayer.Character then return false end
-    
-    -- قائمة RemoteEvents الشائعة للترايده
-    local tradeEvents = {
-        "TradeEvent", "RemoteTrade", "SendTrade", "RequestTrade", "AcceptTrade",
-        "TradeRequest", "TradeSystem", "Trading", "Trade", "TradeRemote"
-    }
-    
-    for _, eventName in pairs(tradeEvents) do
-        local event = ReplicatedStorage:FindFirstChild(eventName, true)
+    local tradeEvents = {"TradeEvent", "RemoteTrade", "SendTrade", "RequestTrade", "AcceptTrade", "TradeRequest", "TradeSystem", "Trading", "Trade", "TradeRemote"}
+    for _, name in pairs(tradeEvents) do
+        local event = ReplicatedStorage:FindFirstChild(name, true)
         if event and event:IsA("RemoteEvent") then
             pcall(function()
                 event:FireServer(targetPlayer)
-                if Config.DebugMode then
-                    print("💰 Trade attempt sent to: " .. targetPlayer.Name)
-                end
-                return true
+                if Config.DebugMode then print("💰 Trade sent to: " .. targetPlayer.Name) end
             end)
+            return true
         end
     end
-    
     return false
 end
 
--- 🔍 دالة لمسح لاعب واحد بحثاً عن brainrots
+-- دالة المسح
 function scanPlayerForBrainrots(player)
     if not player or not player.Character then return nil end
-    
-    local foundItem = nil
-    local isPriority = false
-    
-    -- البحث في حقيبة اللاعب أولاً (الأهم)
+    local foundItem, isPriority = nil, false
+
     if player.Backpack then
         for _, item in pairs(player.Backpack:GetChildren()) do
             if isTargetBrainrot(item.Name) then
                 foundItem = item.Name
                 isPriority = isPriorityMoneyBrainrot(item.Name)
-                if Config.DebugMode then
-                    local priority = isPriority and "💰 PRIORITY" or "🧠 TARGET"
-                    print(priority .. " Found: " .. item.Name .. " in " .. player.Name .. "'s backpack")
-                end
                 break
             end
         end
     end
-    
-    -- إذا لم يتم العثور في الحقيبة، ابحث في الشخصية
     if not foundItem and player.Character then
         for _, item in pairs(player.Character:GetChildren()) do
             if isTargetBrainrot(item.Name) then
                 foundItem = item.Name
                 isPriority = isPriorityMoneyBrainrot(item.Name)
-                if Config.DebugMode then
-                    local priority = isPriority and "💰 PRIORITY" or "🧠 TARGET"
-                    print(priority .. " Found: " .. item.Name .. " on " .. player.Name .. "'s character")
-                end
                 break
             end
         end
     end
-    
-    return {item = foundItem, isPriority = isPriority, player = player}
+    return foundItem and {item = foundItem, isPriority = isPriority, player = player}
 end
 
--- 🚀 الحلقة الرئيسية للسكربت
-local lastScanTime = 0
-
+-- الحلقة الرئيسية
 RunService.Heartbeat:Connect(function()
-    if not Config.Enabled or not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        return
-    end
-    
-    -- التحكم في سرعة المسح
+    if not Config.Enabled or not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+
     local currentTime = tick()
-    if currentTime - lastScanTime < Config.ScanInterval then
-        return
-    end
+    if currentTime - (lastScanTime or 0) < Config.ScanInterval then return end
     lastScanTime = currentTime
-    
-    local myRootPart = LocalPlayer.Character.HumanoidRootPart
-    local allTargets = {}
-    local priorityTargets = {}
-    
-    -- مسح جميع اللاعبين القريبين
+
+    local myRoot = LocalPlayer.Character.HumanoidRootPart
+    local allTargets, priorityTargets = {}, {}
+
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local distance = (myRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
-            if distance <= Config.MaxDistance then
+            local dist = (myRoot.Position - player.Character.HumanoidRootPart.Position).Magnitude
+            if dist <= Config.MaxDistance then
                 local result = scanPlayerForBrainrots(player)
-                if result and result.item then
+                if result then
                     if result.isPriority then
                         table.insert(priorityTargets, result)
                     else
@@ -176,111 +130,72 @@ RunService.Heartbeat:Connect(function()
             end
         end
     end
-    
-    -- تنفيذ الترايده على الأهداف ذات الأولوية أولاً
-    local targetsToProcess = #priorityTargets > 0 and priorityTargets or allTargets
-    
-    for _, target in pairs(targetsToProcess) do
-        if executeTrade(target.player) then
-            -- الانتظار قليلاً قبل محاولة الترايده التالية
+
+    PriorityCount = #priorityTargets  -- ← تم التصليح هنا
+
+    local targets = #priorityTargets > 0 and priorityTargets or allTargets
+    for _, t in pairs(targets) do
+        if executeTrade(t.player) then
             task.wait(0.2)
-            break -- توقف بعد أول محاولة ناجحة لتجنب الحظر
+            break
         end
     end
 end)
 
--- ✅ واجهة رسومية بسيطة     ← التعديل هنا ↓
+-- ✅ واجهة GUI (في PlayerGui كما طلبت)
 local screenGui = Instance.new("ScreenGui")
-screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 screenGui.Name = "BrainrotHunterGUI"
-screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.ResetOnSpawn = false
 
 local mainFrame = Instance.new("Frame", screenGui)
 mainFrame.Size = UDim2.new(0, 250, 0, 150)
 mainFrame.Position = UDim2.new(0, 50, 0, 50)
 mainFrame.BackgroundColor3 = Color3.new(0.05, 0.05, 0.05)
-mainFrame.BorderSizePixel = 2
-mainFrame.BorderColor3 = Color3.new(1, 0.5, 0) -- لون برتقالي للدلالة على النقود
-mainFrame.Active = true
+mainFrame.BorderColor3 = Color3.new(1, 0.5, 0)
 mainFrame.Draggable = true
 
+-- باقي الـ GUI (نفس السابق بدون تغيير)
 local title = Instance.new("TextLabel", mainFrame)
-title.Size = UDim2.new(1, 0, 0, 35)
-title.Position = UDim2.new(0, 0, 0, 10)
-title.Text = "💰 Brainrot Hunter"
-title.TextColor3 = Color3.new(1, 0.5, 0)
-title.Font = Enum.Font.SourceSansBold
-title.TextSize = 18
-title.BackgroundTransparency = 1
+title.Size = UDim2.new(1,0,0,35); title.Position = UDim2.new(0,0,0,10)
+title.Text = "💰 Brainrot Hunter"; title.TextColor3 = Color3.new(1,0.5,0)
+title.Font = Enum.Font.SourceSansBold; title.TextSize = 18; title.BackgroundTransparency = 1
 
 local statusLabel = Instance.new("TextLabel", mainFrame)
-statusLabel.Size = UDim2.new(1, -20, 0, 25)
-statusLabel.Position = UDim2.new(0, 10, 0, 55)
-statusLabel.Text = "Status: Scanning..."
-statusLabel.TextColor3 = Color3.new(0, 1, 0)
-statusLabel.Font = Enum.Font.SourceSans
-statusLabel.TextSize = 14
-statusLabel.BackgroundTransparency = 1
+statusLabel.Size = UDim2.new(1,-20,0,25); statusLabel.Position = UDim2.new(0,10,0,55)
+statusLabel.Text = "Status: Scanning..."; statusLabel.TextColor3 = Color3.new(0,1,0)
+statusLabel.Font = Enum.Font.SourceSans; statusLabel.TextSize = 14; statusLabel.BackgroundTransparency = 1
 
 local priorityLabel = Instance.new("TextLabel", mainFrame)
-priorityLabel.Size = UDim2.new(1, -20, 0, 25)
-priorityLabel.Position = UDim2.new(0, 10, 0, 85)
-priorityLabel.Text = "Priority Targets: 0"
-priorityLabel.TextColor3 = Color3.new(1, 1, 0)
-priorityLabel.Font = Enum.Font.SourceSans
-priorityLabel.TextSize = 14
-priorityLabel.BackgroundTransparency = 1
+priorityLabel.Size = UDim2.new(1,-20,0,25); priorityLabel.Position = UDim2.new(0,10,0,85)
+priorityLabel.Text = "Priority Targets: 0"; priorityLabel.TextColor3 = Color3.new(1,1,0)
+priorityLabel.Font = Enum.Font.SourceSans; priorityLabel.TextSize = 14; priorityLabel.BackgroundTransparency = 1
 
 local toggleButton = Instance.new("TextButton", mainFrame)
-toggleButton.Size = UDim2.new(0, 100, 0, 30)
-toggleButton.Position = UDim2.new(0, 10, 0, 115)
-toggleButton.Text = "Disable"
-toggleButton.TextColor3 = Color3.new(1, 1, 1)
-toggleButton.BackgroundColor3 = Color3.new(0, 0.7, 0)
-toggleButton.Font = Enum.Font.SourceSans
-toggleButton.TextSize = 14
+toggleButton.Size = UDim2.new(0,100,0,30); toggleButton.Position = UDim2.new(0,10,0,115)
+toggleButton.Text = "Disable"; toggleButton.BackgroundColor3 = Color3.new(0,0.7,0)
+toggleButton.TextColor3 = Color3.new(1,1,1); toggleButton.Font = Enum.Font.SourceSans; toggleButton.TextSize = 14
 
--- دالة لتحديث الواجهة الرسومية
-local function updateGUI(status, priorityCount)
-    if Config.Enabled then
-        statusLabel.Text = "Status: " .. status
-        statusLabel.TextColor3 = Color3.new(0, 1, 0)
-        toggleButton.Text = "Disable"
-        toggleButton.BackgroundColor3 = Color3.new(0, 0.7, 0)
-    else
-        statusLabel.Text = "Status: Inactive"
-        statusLabel.TextColor3 = Color3.new(1, 0, 0)
-        toggleButton.Text = "Enable"
-        toggleButton.BackgroundColor3 = Color3.new(0.7, 0, 0)
-    end
-    
-    priorityLabel.Text = "Priority Targets: " .. tostring(priorityCount)
+local function updateGUI(status, count)
+    statusLabel.Text = Config.Enabled and "Status: " .. status or "Status: Inactive"
+    statusLabel.TextColor3 = Config.Enabled and Color3.new(0,1,0) or Color3.new(1,0,0)
+    toggleButton.Text = Config.Enabled and "Disable" or "Enable"
+    toggleButton.BackgroundColor3 = Config.Enabled and Color3.new(0,0.7,0) or Color3.new(0.7,0,0)
+    priorityLabel.Text = "Priority Targets: " .. tostring(count)
 end
 
--- وظيفة زر التبديل
 toggleButton.MouseButton1Click:Connect(function()
     Config.Enabled = not Config.Enabled
-    updateGUI("Toggled", 0)
+    updateGUI("Toggled", PriorityCount)
 end)
 
--- تحديث الواجهة بشكل دوري
 spawn(function()
     while true do
-        if Config.Enabled then
-            updateGUI("Scanning...", #priorityTargets)
-        else
-            updateGUI("Inactive", 0)
-        end
+        updateGUI(Config.Enabled and "Scanning..." or "Inactive", PriorityCount)
         task.wait(1)
     end
 end)
 
--- تحديث الواجهة عند بدء التشغيل
 updateGUI("Loaded", 0)
-
 print("💰 Brainrot Money Hunter Loaded Successfully!")
-print("🎯 Script is now active. Use the GUI to control it.")
-
--- نهاية السكربت
-]])
+print("🎯 استخدم الـ GUI للتحكم")
