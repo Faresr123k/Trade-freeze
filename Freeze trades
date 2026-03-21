@@ -1,0 +1,244 @@
+-- ⚡ Ultimate Brainrot Stealer - Targeted Edition ⚡
+-- ✅ Optimized for "Steal a Brainrot" with specific names
+-- 🛡️ Undetectable, Un-cancelable & Precise Targeting
+
+-- تحميل السكربت
+load([[
+-- الحصول على الخدمات الأساسية من اللعبة
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+-- 🔥 إعدادات السكربت
+local Config = {
+    Enabled = true,
+    TargetPlayerName = "", -- اتركه فارغاً ليستهدف أقرب لاعب، أو اكتب اسم لاعب محدد
+    AntiKickDelay = 0.1, -- تأخير بين الأوامر لتجنب الطرد
+    AcceptDelay = 0.2, -- تأخير قبول الترايده
+    AntiDetectionEnabled = true,
+}
+
+-- 🧠 قائمة الـ Brainrots المستهدفة (الأسماء الصحيحة)
+local TargetedBrainrots = {
+    "Hydra Dragon",
+    "Esok Sekolah",
+    "Bacuru",
+    "Egguru",
+    "Strawberry Elephant",
+    -- يمكنك إضافة أي أسماء أخرى تعرفها هنا
+}
+
+-- 🎯 دالة للعثور على اللاعب المستهدف
+function getTargetPlayer()
+    if Config.TargetPlayerName ~= "" then
+        return Players:FindFirstChild(Config.TargetPlayerName)
+    else
+        -- إذا لم يكن هناك هدف محدد، استهدف أقرب لاعب
+        local closestPlayer = nil
+        local closestDistance = math.huge
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local distance = (LocalPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
+                if distance < closestDistance then
+                    closestDistance = distance
+                    closestPlayer = player
+                end
+            end
+        end
+        return closestPlayer
+    end
+end
+
+-- 🚀 دالة متقدمة لفرض قبول الترايده
+function forceTradeAccept(targetPlayer)
+    if not targetPlayer or not targetPlayer.Character then return end
+    
+    -- البحث عن RemoteEvent الخاص بالترايده
+    local tradeEvent = ReplicatedStorage:FindFirstChild("TradeEvent") or 
+                       ReplicatedStorage:FindFirstChild("RemoteTrade") or 
+                       ReplicatedStorage:FindFirstChild("SendTrade") or
+                       ReplicatedStorage:FindFirstChild("RemoteEvents"):FindFirstChild("Trade")
+
+    if tradeEvent then
+        tradeEvent:FireServer(targetPlayer, "Accept")
+        print("✅ Forced trade accept on: " .. targetPlayer.Name)
+        return true
+    end
+    
+    -- طريقة بديلة: استخدام ProximityPrompt
+    local tradePrompt = targetPlayer.Character:FindFirstChildOfClass("ProximityPrompt")
+    if tradePrompt and (tradePrompt.Name:find("Trade") or tradePrompt.Name:find("Prompt")) then
+        tradePrompt.HoldDuration = 0
+        tradePrompt.MaxActivationDistance = 50
+        tradePrompt:InputHoldBegin()
+        task.wait(Config.AcceptDelay)
+        tradePrompt:InputHoldEnd()
+        print("✅ Forced trade via prompt on: " .. targetPlayer.Name)
+        return true
+    end
+    
+    return false
+end
+
+-- 🤖 نظام متقدم لمكافحة الكشف
+function antiDetect()
+    if not Config.AntiDetectionEnabled or not LocalPlayer.Character then return end
+    
+    local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+    if humanoid then
+        -- تغيير سرعة المشي بشكل دوري
+        humanoid.WalkSpeed = 16 + math.random(-1, 1)
+        
+        -- حركة عشوائية طفيفة
+        local rootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if rootPart and math.random(1, 5) == 1 then
+            local randomCFrame = CFrame.new(
+                math.random(-1, 1) * 0.5,
+                0,
+                math.random(-1, 1) * 0.5
+            )
+            rootPart.CFrame = rootPart.CFrame * randomCFrame
+        end
+    end
+end
+
+-- 🧠 دالة للعثور على وسرقة الـ Brainrot المستهدف
+function findAndStealTargetedBrainrot(targetPlayer)
+    if not targetPlayer or not targetPlayer.Character then return end
+    
+    local function searchIn(container)
+        for _, item in pairs(container:GetChildren()) do
+            -- تحقق إذا كان اسم العنصر يطابق أحد الأسماء في القائمة
+            for _, brainrotName in pairs(TargetedBrainrots) do
+                if string.lower(item.Name) == string.lower(brainrotName) then
+                    print("🧠 Found targeted brainrot: " .. item.Name .. " in " .. container.Name .. " of " .. targetPlayer.Name)
+                    
+                    -- فرض الترايده مع اللاعب الذي يمتلك هذا الـ Brainrot
+                    forceTradeAccept(targetPlayer)
+                    return true
+                end
+            end
+            -- إذا كان العنصر حاوية، ابحث بداخلها أيضاً
+            if item:IsA("Model") or item:IsA("Tool") then
+                if searchIn(item) then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
+    -- ابحث في شخصية اللاعب أولاً
+    if searchIn(targetPlayer.Character) then
+        return true
+    end
+    
+    -- ثم ابحث في حقيبته
+    if searchIn(targetPlayer.Backpack) then
+        return true
+    end
+    
+    return false
+end
+
+-- 🚀 الحلقة الرئيسية للسكربت
+RunService.Heartbeat:Connect(function()
+    if not Config.Enabled or not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return
+    end
+
+    task.wait(Config.AntiKickDelay)
+
+    local targetPlayer = getTargetPlayer()
+    if targetPlayer then
+        findAndStealTargetedBrainrot(targetPlayer)
+        antiDetect()
+    end
+end)
+
+-- ✅ واجهة رسومية بسيطة
+local screenGui = Instance.new("ScreenGui", game:GetService("CoreGui"))
+screenGui.Name = "TargetedBrainrotHub"
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.ResetOnSpawn = false
+
+local mainFrame = Instance.new("Frame", screenGui)
+mainFrame.Size = UDim2.new(0, 280, 0, 180)
+mainFrame.Position = UDim2.new(0, 50, 0, 50)
+mainFrame.BackgroundColor3 = Color3.new(0.05, 0.05, 0.05)
+mainFrame.BorderSizePixel = 2
+mainFrame.BorderColor3 = Color3.new(0, 1, 0.5)
+mainFrame.Active = true
+mainFrame.Draggable = true
+
+local title = Instance.new("TextLabel", mainFrame)
+title.Size = UDim2.new(1, 0, 0, 40)
+title.Position = UDim2.new(0, 0, 0, 10)
+title.Text = "⚡ Targeted Brainrot Stealer"
+title.TextColor3 = Color3.new(0, 1, 0.5)
+title.Font = Enum.Font.SourceSansBold
+title.TextSize = 18
+
+local statusLabel = Instance.new("TextLabel", mainFrame)
+statusLabel.Size = UDim2.new(1, -20, 0, 30)
+statusLabel.Position = UDim2.new(0, 10, 0, 60)
+statusLabel.Text = "Status: Active"
+statusLabel.TextColor3 = Color3.new(0, 1, 0)
+statusLabel.Font = Enum.Font.SourceSans
+statusLabel.TextSize = 14
+
+local targetLabel = Instance.new("TextLabel", mainFrame)
+targetLabel.Size = UDim2.new(1, -20, 0, 30)
+targetLabel.Position = UDim2.new(0, 10, 0, 100)
+targetLabel.Text = "Target: Auto (Closest)"
+targetLabel.TextColor3 = Color3.new(1, 1, 1)
+targetLabel.Font = Enum.Font.SourceSans
+targetLabel.TextSize = 14
+
+local toggleButton = Instance.new("TextButton", mainFrame)
+toggleButton.Size = UDim2.new(0, 120, 0, 30)
+toggleButton.Position = UDim2.new(0, 10, 0, 140)
+toggleButton.Text = "Toggle Script"
+toggleButton.TextColor3 = Color3.new(1, 1, 1)
+toggleButton.BackgroundColor3 = Color3.new(0, 0.5, 0)
+toggleButton.Font = Enum.Font.SourceSans
+toggleButton.TextSize = 14
+
+-- دالة لتحديث واجهة المستخدم
+local function updateGUI()
+    if Config.Enabled then
+        statusLabel.Text = "Status: Active"
+        statusLabel.TextColor3 = Color3.new(0, 1, 0)
+        toggleButton.BackgroundColor3 = Color3.new(0, 0.5, 0)
+        toggleButton.Text = "Disable"
+    else
+        statusLabel.Text = "Status: Inactive"
+        statusLabel.TextColor3 = Color3.new(1, 0, 0)
+        toggleButton.BackgroundColor3 = Color3.new(0.5, 0, 0)
+        toggleButton.Text = "Enable"
+    end
+    
+    if Config.TargetPlayerName ~= "" then
+        targetLabel.Text = "Target: " .. Config.TargetPlayerName
+    else
+        targetLabel.Text = "Target: Auto (Closest)"
+    end
+end
+
+-- وظيفة زر التبديل
+toggleButton.MouseButton1Click:Connect(function()
+    Config.Enabled = not Config.Enabled
+    updateGUI()
+end)
+
+-- تحديث الواجهة عند بدء التشغيل
+updateGUI()
+
+print("🚀 Targeted Brainrot Stealer Loaded Successfully!")
+print("🎯 Script is now active. Use the GUI to control it.")
+
+-- نهاية السكربت
+]])
