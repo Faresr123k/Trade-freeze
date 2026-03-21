@@ -1,5 +1,5 @@
 -- 💰 Brainrot Trade Assistant - Enhanced Edition (2026)
--- ✅ يتعرف على أي إضافة (Gold / Diamond / Divine / إلخ) + يحاول إرسال طلب تريد
+-- يتعرف على أي إضافة (Gold / Diamond / Divine / إلخ) + يحاول إرسال طلب تريد
 -- 🔐 حماية محسّنة من الكيك + اكتشاف أفضل للـ Remotes
 
 local Players = game:GetService("Players")
@@ -7,6 +7,10 @@ local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+
+-- أهم خطوتين لضمان عمل الـ GUI في Delta
+if not game:IsLoaded() then game.Loaded:Wait() end
+task.wait(2.5)   -- تأخير أكبر قليلاً لأن Delta يحتاج وقت أطول أحياناً
 
 local Config = {
     Enabled = true,
@@ -18,7 +22,6 @@ local Config = {
     MaxRequestsPerMinute = 20
 }
 
--- قائمة Brainrots محدّثة
 local TargetBrainrots = {
     "Festive 67", "Esok Sekolah", "Bacuru and Egguru", "Headless Horseman",
     "noo my gold", "snailo colvero", "Dragon Cannelloni", "Gold Gold Gold",
@@ -34,14 +37,12 @@ local TargetBrainrots = {
     "Popcuro and Fizzuru", "Strawberry Elephant"
 }
 
--- قائمة الأولويات للـ brainrots ذات القيمة العالية
 local PriorityMoneyBrainrots = {
     "Money Money Puggy", "Gold Gold Gold", "noo my gold",
     "la lucky grande", "lavadorito spinito", "Dragon Cannelloni",
     "Hydra Dragon", "Swag Soda"
 }
 
--- قائمة موسعة من Remotes المحتملة للتريد
 local PossibleTradeRemotes = {
     "TradeEvent", "RemoteTrade", "SendTrade", "RequestTrade", "AcceptTrade",
     "TradeRequest", "TradeSystem", "Trading", "Trade", "TradeRemote",
@@ -52,7 +53,6 @@ local PossibleTradeRemotes = {
     "MachineTrade", "TradingMachine", "BrainTrade", "ItemExchange", "SwapItems"
 }
 
--- متغيرات للإحصائيات
 local PriorityCount = 0
 local lastScanTime = 0
 local requestCount = 0
@@ -60,15 +60,14 @@ local lastRequestTime = 0
 local detectedRemotes = {}
 local successfulRemote = nil
 
--- طباعة Remotes المتاحة للاكتشاف
+-- طباعة Remotes المتاحة
 if Config.DebugMode then
-    print("🔍 جميع RemoteEvents في ReplicatedStorage:")
+    print("🔍 جميع RemoteEvents/Functions في ReplicatedStorage:")
     for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
         if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
             print("   → " .. obj:GetFullName())
-            -- حفظ الـ remotes التي تبدو متعلقة بالتريد
-            for _, remoteName in ipairs(PossibleTradeRemotes) do
-                if string.find(string.lower(obj.Name), string.lower(remoteName)) then
+            for _, rn in ipairs(PossibleTradeRemotes) do
+                if string.find(string.lower(obj.Name), string.lower(rn), 1, true) then
                     table.insert(detectedRemotes, obj:GetFullName())
                     break
                 end
@@ -77,189 +76,94 @@ if Config.DebugMode then
     end
     
     if #detectedRemotes > 0 then
-        print("🎯 Remotes المحتملة للتريد تم اكتشافها:")
-        for _, remote in ipairs(detectedRemotes) do
-            print("   → " .. remote)
-        end
+        print("🎯 Remotes محتملة للتريد تم اكتشافها:")
+        for i, r in ipairs(detectedRemotes) do print("   → " .. r) end
     else
         print("⚠️ لم يتم العثور على remotes متعلقة بالتريد")
     end
 end
 
--- دالة محسّنة للتعرف على الإضافات (Gold/Diamond/Divine)
+-- دالة التعرف على الـ brainrot (مع دعم الإضافات)
 function isTargetBrainrot(itemName)
     if not itemName or type(itemName) ~= "string" then return false end
-    
     local lowerItem = string.lower(itemName)
-    
-    -- التحقق من الإضافات المميزة أولاً
-    local hasSpecialRarity = false
-    if string.find(lowerItem, "gold") or string.find(lowerItem, "diamond") or 
-       string.find(lowerItem, "divine") or string.find(lowerItem, "rainbow") or
-       string.find(lowerItem, "mythic") or string.find(lowerItem, "legendary") then
-        hasSpecialRarity = true
-    end
-    
-    -- التحقق من اسم الـ brainrot الأساسي
-    for _, brainrot in ipairs(TargetBrainrots) do
-        local lowerBrain = string.lower(brainrot)
-        if string.find(lowerItem, lowerBrain, 1, true) or string.find(lowerBrain, lowerItem, 1, true) then
+    for _, b in ipairs(TargetBrainrots) do
+        local lb = string.lower(b)
+        if string.find(lowerItem, lb, 1, true) or string.find(lb, lowerItem, 1, true) then
             return true
         end
     end
-    
-    -- إذا كان يحتوي على إضافة مميزة، تحقق إذا كان يحتوي على أي اسم من قائمة الأساسية
-    if hasSpecialRarity then
-        for _, brainrot in ipairs(TargetBrainrots) do
-            local lowerBrain = string.lower(brainrot)
-            -- تجزئة اسم العنصر للبحث عن أجزاء من اسم الـ brainrot
-            local parts = string.split(lowerItem, " ")
-            for _, part in ipairs(parts) do
-                if string.len(part) > 3 and string.find(lowerBrain, part, 1, true) then
-                    return true
-                end
-            end
-        end
-    end
-    
     return false
 end
 
--- دالة محسّنة للتحقق من الأولوية مع دعم الإضافات
-function isPriority(itemName)
-    if not itemName or type(itemName) ~= "string" then return false end
-    
-    local lowerItem = string.lower(itemName)
-    
-    -- التحقق من الإضافات المميزة
-    local hasSpecialRarity = false
-    if string.find(lowerItem, "gold") or string.find(lowerItem, "diamond") or 
-       string.find(lowerItem, "divine") or string.find(lowerItem, "rainbow") or
-       string.find(lowerItem, "mythic") or string.find(lowerItem, "legendary") then
-        hasSpecialRarity = true
-    end
-    
-    -- إذا كان يحتوي على إضافة مميزة واسم أولوي، فهو أولوية
-    if hasSpecialRarity then
-        for _, brainrot in ipairs(PriorityMoneyBrainrots) do
-            local lowerBrain = string.lower(brainrot)
-            -- تجزئة اسم العنصر للبحث عن أجزاء من اسم الـ brainrot
-            local parts = string.split(lowerItem, " ")
-            for _, part in ipairs(parts) do
-                if string.len(part) > 3 and string.find(lowerBrain, part, 1, true) then
-                    return true
-                end
-            end
-        end
-    end
-    
-    -- التحقق من المطابقة المباشرة
-    for _, brainrot in ipairs(PriorityMoneyBrainrots) do
-        local lowerBrain = string.lower(brainrot)
-        if string.find(lowerItem, lowerBrain, 1, true) or string.find(lowerBrain, lowerItem, 1, true) then
+function isPriority(name)
+    if not name or type(name) ~= "string" then return false end
+    local lower = string.lower(name)
+    for _, b in ipairs(PriorityMoneyBrainrots) do
+        local lb = string.lower(b)
+        if string.find(lower, lb, 1, true) or string.find(lb, lower, 1, true) then
             return true
         end
     end
-    
     return false
 end
 
--- إرسال طلب التريد مع محاولات متعددة وحماية من السبام
 function trySendTradeRequest(targetPlayer)
     if not targetPlayer or not targetPlayer.Character then return false end
     
-    -- حماية من السبام
     local now = tick()
     if Config.AntiKickProtection and now - lastRequestTime < 60 / Config.MaxRequestsPerMinute then
-        if Config.DebugMode then
-            print("🛡️ تم منع الإرسال لتجنب السبام")
-        end
+        if Config.DebugMode then print("🛡️ منع إرسال لتجنب السبام") end
         return false
     end
-    
-    -- استخدام الـ remote الناجح إذا تم العثور عليه مسبقًا
+
+    -- محاولة الـ remote الناجح أولاً
     if successfulRemote then
-        pcall(function()
-            local remote = ReplicatedStorage:FindFirstChild(successfulRemote, true)
-            if remote and remote:IsA("RemoteEvent") then
-                remote:FireServer(targetPlayer)
-                requestCount = requestCount + 1
-                lastRequestTime = now
-                if Config.DebugMode then
-                    print("💬 تم إرسال طلب تريد إلى " .. targetPlayer.Name .. " عبر الـ remote الناجح")
-                end
-                return true
-            end
-        end)
-    end
-    
-    -- محاولة إرسال طلب التريد عبر الـ remotes المكتشفة
-    for _, remotePath in ipairs(detectedRemotes) do
-        local remote = ReplicatedStorage:FindFirstChild(remotePath, true)
-        if remote and (remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction")) then
+        local r = ReplicatedStorage:FindFirstChild(successfulRemote, true)
+        if r and r:IsA("RemoteEvent") then
             pcall(function()
-                -- محاولات مختلفة للـ arguments
-                if remote:IsA("RemoteEvent") then
-                    remote:FireServer(targetPlayer)                  -- محاولة 1: بسيطة
-                    remote:FireServer(targetPlayer, "request")       -- محاولة 2
-                    remote:FireServer("request", targetPlayer)       -- محاولة 3
-                    remote:FireServer({player = targetPlayer})       -- محاولة 4: جدول
-                    remote:FireServer({Target = targetPlayer, Type = "TradeRequest"}) -- محاولة 5
-                end
-                
-                if Config.DebugMode then
-                    print("💬 محاولة إرسال طلب تريد إلى " .. targetPlayer.Name .. " عبر: " .. remote:GetFullName())
-                end
-                
-                -- حفظ الـ remote الناجح
-                successfulRemote = remotePath
-                requestCount = requestCount + 1
+                r:FireServer(targetPlayer)
+                requestCount += 1
                 lastRequestTime = now
-                
-                return true  -- توقف بعد أول محاولة ناجحة محتملة
+                print("استخدم الـ remote الناجح: " .. successfulRemote)
             end)
+            return true
         end
     end
-    
-    -- محاولة إرسال طلب التريد عبر قائمة الـ remotes المحتملة
-    if #detectedRemotes == 0 then
-        for _, name in ipairs(PossibleTradeRemotes) do
-            local remote = ReplicatedStorage:FindFirstChild(name, true)
-            if remote and (remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction")) then
+
+    -- محاولات متعددة
+    local attempts = {
+        function(r) r:FireServer(targetPlayer) end,
+        function(r) r:FireServer(targetPlayer, "request") end,
+        function(r) r:FireServer("request", targetPlayer) end,
+        function(r) r:FireServer({player = targetPlayer}) end,
+        function(r) r:FireServer({Target = targetPlayer, Type = "TradeRequest"}) end
+    }
+
+    for _, path in ipairs(detectedRemotes) do
+        local remote = ReplicatedStorage:FindFirstChild(path, true)
+        if remote and remote:IsA("RemoteEvent") then
+            for _, attempt in ipairs(attempts) do
                 pcall(function()
-                    if remote:IsA("RemoteEvent") then
-                        remote:FireServer(targetPlayer)
-                        remote:FireServer(targetPlayer, "request")
-                        remote:FireServer("request", targetPlayer)
-                    end
-                    
-                    if Config.DebugMode then
-                        print("💬 محاولة إرسال طلب تريد إلى " .. targetPlayer.Name .. " عبر: " .. remote:GetFullName())
-                    end
-                    
-                    -- حفظ الـ remote الناجح
-                    successfulRemote = name
-                    requestCount = requestCount + 1
+                    attempt(remote)
+                    successfulRemote = path
+                    requestCount += 1
                     lastRequestTime = now
-                    
-                    return true
+                    print("نجاح محتمل عبر: " .. path)
                 end)
             end
+            return true
         end
     end
-    
-    if Config.DebugMode then
-        warn("⚠️ لم يتم العثور على Remote مناسب للتريد")
-    end
+
+    warn("⚠️ لم يتم العثور على remote مناسب")
     return false
 end
 
--- دالة المسح مع تحسينات
 function scanPlayer(player)
     if player == LocalPlayer or not player.Character then return nil end
     local found, prio = nil, false
 
-    -- فحص الـ backpack أولاً
     if player.Backpack then
         for _, item in ipairs(player.Backpack:GetChildren()) do
             if isTargetBrainrot(item.Name) then
@@ -270,7 +174,6 @@ function scanPlayer(player)
         end
     end
 
-    -- فحص الـ character إذا لم يتم العثور على شيء في الـ backpack
     if not found and player.Character then
         for _, item in ipairs(player.Character:GetChildren()) do
             if isTargetBrainrot(item.Name) then
@@ -284,7 +187,6 @@ function scanPlayer(player)
     return found and {name = found, priority = prio, player = player}
 end
 
--- الحلقة الرئيسية مع تحسينات
 RunService.Heartbeat:Connect(function()
     if not Config.Enabled or not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
 
@@ -301,11 +203,7 @@ RunService.Heartbeat:Connect(function()
             if dist <= Config.MaxDistance then
                 local res = scanPlayer(plr)
                 if res then
-                    if res.priority then
-                        table.insert(prios, res)
-                    else
-                        table.insert(targets, res)
-                    end
+                    if res.priority then table.insert(prios, res) else table.insert(targets, res) end
                 end
             end
         end
@@ -317,17 +215,33 @@ RunService.Heartbeat:Connect(function()
         local list = #prios > 0 and prios or targets
         for _, t in ipairs(list) do
             if trySendTradeRequest(t.player) then
-                task.wait(0.8)  -- تأخير لتجنب spam
+                task.wait(0.8)
                 break
             end
         end
     end
 end)
 
--- GUI محسّن مع إحصائيات
-local sg = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+-- ────────────────────────────────────────────────
+--                إنشاء الـ GUI (الجزء الحساس)
+-- ────────────────────────────────────────────────
+
+print("جاري إنشاء الواجهة...")
+
+local success, playerGui = pcall(function()
+    return LocalPlayer:WaitForChild("PlayerGui", 12)
+end)
+
+if not success or not playerGui then
+    warn("❌ فشل الوصول إلى PlayerGui بعد 12 ثانية")
+    warn("الحلول المقترحة: أعد تشغيل Delta، أعد الدخول للعبة، أو جرب executor آخر")
+    return
+end
+
+local sg = Instance.new("ScreenGui")
 sg.Name = "TradeAssistant"
 sg.ResetOnSpawn = false
+sg.Parent = playerGui
 
 local frame = Instance.new("Frame", sg)
 frame.Size = UDim2.new(0, 280, 0, 200)
@@ -383,7 +297,6 @@ toggleAuto.Text = "Auto Send: OFF"
 toggleAuto.BackgroundColor3 = Color3.fromRGB(120, 0, 0)
 toggleAuto.TextColor3 = Color3.new(1,1,1)
 
--- تحديث الواجهة
 local function update()
     status.Text = Config.Enabled and "Status: Scanning..." or "Status: Paused"
     status.TextColor3 = Config.Enabled and Color3.fromRGB(100,255,100) or Color3.fromRGB(255,80,80)
@@ -397,7 +310,6 @@ local function update()
     statsLabel.Text = "Requests Sent: " .. requestCount
 end
 
--- معالجة النقرات على الأزرار
 toggleScan.MouseButton1Click:Connect(function()
     Config.Enabled = not Config.Enabled
     update()
@@ -408,108 +320,16 @@ toggleAuto.MouseButton1Click:Connect(function()
     update()
 end)
 
--- تحديث دوري للواجهة
 spawn(function()
     while task.wait(1) do update() end
 end)
 
--- إضافة ميزة الإعدادات المتقدمة
-local settingsButton = Instance.new("TextButton", frame)
-settingsButton.Size = UDim2.new(0, 30, 0, 30)
-settingsButton.Position = UDim2.new(1, -35, 0, 5)
-settingsButton.Text = "⚙️"
-settingsButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-settingsButton.TextColor3 = Color3.new(1,1,1)
-settingsButton.Font = Enum.Font.GothamBold
-
--- نافذة الإعدادات
-local settingsFrame = Instance.new("Frame", frame)
-settingsFrame.Size = UDim2.new(0, 260, 0, 150)
-settingsFrame.Position = UDim2.new(0, 10, 0, 200)
-settingsFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-settingsFrame.BorderColor3 = Color3.fromRGB(100, 100, 100)
-settingsFrame.Visible = false
-
-local settingsTitle = Instance.new("TextLabel", settingsFrame)
-settingsTitle.Size = UDim2.new(1, 0, 0, 30)
-settingsTitle.Text = "الإعدادات المتقدمة"
-settingsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-settingsTitle.BackgroundTransparency = 1
-settingsTitle.Font = Enum.Font.GothamBold
-settingsTitle.TextSize = 16
-
--- إعداد مسح المسافة
-local distanceLabel = Instance.new("TextLabel", settingsFrame)
-distanceLabel.Size = UDim2.new(0.5, 0, 0, 25)
-distanceLabel.Position = UDim2.new(0, 10, 0, 40)
-distanceLabel.Text = "مسافة البحث:"
-distanceLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-distanceLabel.BackgroundTransparency = 1
-distanceLabel.TextSize = 14
-
-local distanceInput = Instance.new("TextBox", settingsFrame)
-distanceInput.Size = UDim2.new(0.4, 0, 0, 25)
-distanceInput.Position = UDim2.new(0.5, 5, 0, 40)
-distanceInput.Text = tostring(Config.MaxDistance)
-distanceInput.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-distanceInput.TextColor3 = Color3.new(1,1,1)
-distanceInput.TextSize = 14
-
--- إعداد فترة المسح
-local intervalLabel = Instance.new("TextLabel", settingsFrame)
-intervalLabel.Size = UDim2.new(0.5, 0, 0, 25)
-intervalLabel.Position = UDim2.new(0, 10, 0, 75)
-intervalLabel.Text = "فترة المسح (ثانية):"
-intervalLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-intervalLabel.BackgroundTransparency = 1
-intervalLabel.TextSize = 14
-
-local intervalInput = Instance.new("TextBox", settingsFrame)
-intervalInput.Size = UDim2.new(0.4, 0, 0, 25)
-intervalInput.Position = UDim2.new(0.5, 5, 0, 75)
-intervalInput.Text = tostring(Config.ScanInterval)
-intervalInput.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-intervalInput.TextColor3 = Color3.new(1,1,1)
-intervalInput.TextSize = 14
-
--- زر حفظ الإعدادات
-local saveButton = Instance.new("TextButton", settingsFrame)
-saveButton.Size = UDim2.new(0, 100, 0, 30)
-saveButton.Position = UDim2.new(0, 80, 0, 110)
-saveButton.Text = "حفظ"
-saveButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-saveButton.TextColor3 = Color3.new(1,1,1)
-saveButton.Font = Enum.Font.GothamBold
-
--- معالجة النقر على زر الإعدادات
-settingsButton.MouseButton1Click:Connect(function()
-    settingsFrame.Visible = not settingsFrame.Visible
-end)
-
--- حفظ الإعدادات
-saveButton.MouseButton1Click:Connect(function()
-    local newDistance = tonumber(distanceInput.Text)
-    local newInterval = tonumber(intervalInput.Text)
-    
-    if newDistance and newDistance > 0 and newDistance <= 500 then
-        Config.MaxDistance = newDistance
-    else
-        warn("قيمة مسافة البحث غير صالحة")
-    end
-    
-    if newInterval and newInterval > 0 and newInterval <= 10 then
-        Config.ScanInterval = newInterval
-    else
-        warn("قيمة فترة المسح غير صالحة")
-    end
-    
-    settingsFrame.Visible = false
-    update()
-end)
-
--- بدء التشغيل
 update()
-print("✅ Trade Assistant Loaded مع دعم كامل للإضافات (Gold/Diamond/Divine)")
-print("🔧 استخدم زر الإعدادات ⚙️ لتخصيص السكربت")
-print("💡 شغل Auto Send من الـ GUI وشوف الـ console")
-print("🛡️ تم تفعيل الحماية من السبام والكيك")
+
+print("───────────────────────────────────────────────")
+print("✅ الواجهة تم إنشاؤها بنجاح")
+print("إذا لم تظهر بعد، جرب:")
+print("1. أعد تشغيل Delta")
+print("2. أعد الدخول للعبة")
+print("3. تأكد أنك داخل Steal a Brainrot")
+print("───────────────────────────────────────────────")
