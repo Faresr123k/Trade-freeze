@@ -189,8 +189,9 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- ✅ واجهة رسومية بسيطة
-local screenGui = Instance.new("ScreenGui", game:GetService("CoreGui"))
+-- ✅ واجهة رسومية بسيطة     ← التعديل هنا ↓
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 screenGui.Name = "BrainrotHunterGUI"
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.ResetOnSpawn = false
