@@ -1,0 +1,515 @@
+-- 💰 Brainrot Trade Assistant - Enhanced Edition (2026)
+-- ✅ يتعرف على أي إضافة (Gold / Diamond / Divine / إلخ) + يحاول إرسال طلب تريد
+-- 🔐 حماية محسّنة من الكيك + اكتشاف أفضل للـ Remotes
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local Config = {
+    Enabled = true,
+    ScanInterval = 1.8,
+    MaxDistance = 250,
+    DebugMode = true,
+    AutoSendRequest = false,
+    AntiKickProtection = true,
+    MaxRequestsPerMinute = 20
+}
+
+-- قائمة Brainrots محدّثة
+local TargetBrainrots = {
+    "Festive 67", "Esok Sekolah", "Bacuru and Egguru", "Headless Horseman",
+    "noo my gold", "snailo colvero", "Dragon Cannelloni", "Gold Gold Gold",
+    "la lucky grande", "lavadorito spinito", "los candies", "burgeru and fryuro",
+    "la Extinct grande", "los primos", "los bros", "las sis", "meowl", "Cerberus",
+    "garama and madundung", "Money Money Puggy", "Ketupat Kepat", "Tang Tang Keletang",
+    "Hydra dragon cannelloni", "Los sekolah", "Spaghetti Tualetti", "Los mobilis",
+    "Lovin rose", "Nacho Spyder", "Nuclearo dinossauro", "La casa boo", "Orcaledon",
+    "Evildon", "TicTac Sahur", "Swaggy Bros", "W or L", "Cooki and Milki",
+    "capitano moby", "La Supreme Combinasion", "La jolly grande", "Ketchuru and Musturu",
+    "La Taco Combinasion", "La Romantic grande", "La ginger Sekolah", "Swag Soda",
+    "Tralaledon", "Gobblino Uniciclino", "La Spooky Grande", "Tuff Toucan",
+    "Popcuro and Fizzuru", "Strawberry Elephant"
+}
+
+-- قائمة الأولويات للـ brainrots ذات القيمة العالية
+local PriorityMoneyBrainrots = {
+    "Money Money Puggy", "Gold Gold Gold", "noo my gold",
+    "la lucky grande", "lavadorito spinito", "Dragon Cannelloni",
+    "Hydra Dragon", "Swag Soda"
+}
+
+-- قائمة موسعة من Remotes المحتملة للتريد
+local PossibleTradeRemotes = {
+    "TradeEvent", "RemoteTrade", "SendTrade", "RequestTrade", "AcceptTrade",
+    "TradeRequest", "TradeSystem", "Trading", "Trade", "TradeRemote",
+    "SendTradeRequest", "InitiateTrade", "OfferTrade", "SendOffer", "AcceptOffer",
+    "TradeMachine", "TradeHandler", "BrainrotTrade", "ExchangeBrainrot", "TradeOfferRemote",
+    "GlobalTrade", "ServerTrade", "RequestPlayerTrade", "PlayerTrade", "StartTrade",
+    "BeginTrade", "ProposeTrade", "NewTrade", "TradeInvite", "TradeProposal",
+    "MachineTrade", "TradingMachine", "BrainTrade", "ItemExchange", "SwapItems"
+}
+
+-- متغيرات للإحصائيات
+local PriorityCount = 0
+local lastScanTime = 0
+local requestCount = 0
+local lastRequestTime = 0
+local detectedRemotes = {}
+local successfulRemote = nil
+
+-- طباعة Remotes المتاحة للاكتشاف
+if Config.DebugMode then
+    print("🔍 جميع RemoteEvents في ReplicatedStorage:")
+    for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            print("   → " .. obj:GetFullName())
+            -- حفظ الـ remotes التي تبدو متعلقة بالتريد
+            for _, remoteName in ipairs(PossibleTradeRemotes) do
+                if string.find(string.lower(obj.Name), string.lower(remoteName)) then
+                    table.insert(detectedRemotes, obj:GetFullName())
+                    break
+                end
+            end
+        end
+    end
+    
+    if #detectedRemotes > 0 then
+        print("🎯 Remotes المحتملة للتريد تم اكتشافها:")
+        for _, remote in ipairs(detectedRemotes) do
+            print("   → " .. remote)
+        end
+    else
+        print("⚠️ لم يتم العثور على remotes متعلقة بالتريد")
+    end
+end
+
+-- دالة محسّنة للتعرف على الإضافات (Gold/Diamond/Divine)
+function isTargetBrainrot(itemName)
+    if not itemName or type(itemName) ~= "string" then return false end
+    
+    local lowerItem = string.lower(itemName)
+    
+    -- التحقق من الإضافات المميزة أولاً
+    local hasSpecialRarity = false
+    if string.find(lowerItem, "gold") or string.find(lowerItem, "diamond") or 
+       string.find(lowerItem, "divine") or string.find(lowerItem, "rainbow") or
+       string.find(lowerItem, "mythic") or string.find(lowerItem, "legendary") then
+        hasSpecialRarity = true
+    end
+    
+    -- التحقق من اسم الـ brainrot الأساسي
+    for _, brainrot in ipairs(TargetBrainrots) do
+        local lowerBrain = string.lower(brainrot)
+        if string.find(lowerItem, lowerBrain, 1, true) or string.find(lowerBrain, lowerItem, 1, true) then
+            return true
+        end
+    end
+    
+    -- إذا كان يحتوي على إضافة مميزة، تحقق إذا كان يحتوي على أي اسم من قائمة الأساسية
+    if hasSpecialRarity then
+        for _, brainrot in ipairs(TargetBrainrots) do
+            local lowerBrain = string.lower(brainrot)
+            -- تجزئة اسم العنصر للبحث عن أجزاء من اسم الـ brainrot
+            local parts = string.split(lowerItem, " ")
+            for _, part in ipairs(parts) do
+                if string.len(part) > 3 and string.find(lowerBrain, part, 1, true) then
+                    return true
+                end
+            end
+        end
+    end
+    
+    return false
+end
+
+-- دالة محسّنة للتحقق من الأولوية مع دعم الإضافات
+function isPriority(itemName)
+    if not itemName or type(itemName) ~= "string" then return false end
+    
+    local lowerItem = string.lower(itemName)
+    
+    -- التحقق من الإضافات المميزة
+    local hasSpecialRarity = false
+    if string.find(lowerItem, "gold") or string.find(lowerItem, "diamond") or 
+       string.find(lowerItem, "divine") or string.find(lowerItem, "rainbow") or
+       string.find(lowerItem, "mythic") or string.find(lowerItem, "legendary") then
+        hasSpecialRarity = true
+    end
+    
+    -- إذا كان يحتوي على إضافة مميزة واسم أولوي، فهو أولوية
+    if hasSpecialRarity then
+        for _, brainrot in ipairs(PriorityMoneyBrainrots) do
+            local lowerBrain = string.lower(brainrot)
+            -- تجزئة اسم العنصر للبحث عن أجزاء من اسم الـ brainrot
+            local parts = string.split(lowerItem, " ")
+            for _, part in ipairs(parts) do
+                if string.len(part) > 3 and string.find(lowerBrain, part, 1, true) then
+                    return true
+                end
+            end
+        end
+    end
+    
+    -- التحقق من المطابقة المباشرة
+    for _, brainrot in ipairs(PriorityMoneyBrainrots) do
+        local lowerBrain = string.lower(brainrot)
+        if string.find(lowerItem, lowerBrain, 1, true) or string.find(lowerBrain, lowerItem, 1, true) then
+            return true
+        end
+    end
+    
+    return false
+end
+
+-- إرسال طلب التريد مع محاولات متعددة وحماية من السبام
+function trySendTradeRequest(targetPlayer)
+    if not targetPlayer or not targetPlayer.Character then return false end
+    
+    -- حماية من السبام
+    local now = tick()
+    if Config.AntiKickProtection and now - lastRequestTime < 60 / Config.MaxRequestsPerMinute then
+        if Config.DebugMode then
+            print("🛡️ تم منع الإرسال لتجنب السبام")
+        end
+        return false
+    end
+    
+    -- استخدام الـ remote الناجح إذا تم العثور عليه مسبقًا
+    if successfulRemote then
+        pcall(function()
+            local remote = ReplicatedStorage:FindFirstChild(successfulRemote, true)
+            if remote and remote:IsA("RemoteEvent") then
+                remote:FireServer(targetPlayer)
+                requestCount = requestCount + 1
+                lastRequestTime = now
+                if Config.DebugMode then
+                    print("💬 تم إرسال طلب تريد إلى " .. targetPlayer.Name .. " عبر الـ remote الناجح")
+                end
+                return true
+            end
+        end)
+    end
+    
+    -- محاولة إرسال طلب التريد عبر الـ remotes المكتشفة
+    for _, remotePath in ipairs(detectedRemotes) do
+        local remote = ReplicatedStorage:FindFirstChild(remotePath, true)
+        if remote and (remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction")) then
+            pcall(function()
+                -- محاولات مختلفة للـ arguments
+                if remote:IsA("RemoteEvent") then
+                    remote:FireServer(targetPlayer)                  -- محاولة 1: بسيطة
+                    remote:FireServer(targetPlayer, "request")       -- محاولة 2
+                    remote:FireServer("request", targetPlayer)       -- محاولة 3
+                    remote:FireServer({player = targetPlayer})       -- محاولة 4: جدول
+                    remote:FireServer({Target = targetPlayer, Type = "TradeRequest"}) -- محاولة 5
+                end
+                
+                if Config.DebugMode then
+                    print("💬 محاولة إرسال طلب تريد إلى " .. targetPlayer.Name .. " عبر: " .. remote:GetFullName())
+                end
+                
+                -- حفظ الـ remote الناجح
+                successfulRemote = remotePath
+                requestCount = requestCount + 1
+                lastRequestTime = now
+                
+                return true  -- توقف بعد أول محاولة ناجحة محتملة
+            end)
+        end
+    end
+    
+    -- محاولة إرسال طلب التريد عبر قائمة الـ remotes المحتملة
+    if #detectedRemotes == 0 then
+        for _, name in ipairs(PossibleTradeRemotes) do
+            local remote = ReplicatedStorage:FindFirstChild(name, true)
+            if remote and (remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction")) then
+                pcall(function()
+                    if remote:IsA("RemoteEvent") then
+                        remote:FireServer(targetPlayer)
+                        remote:FireServer(targetPlayer, "request")
+                        remote:FireServer("request", targetPlayer)
+                    end
+                    
+                    if Config.DebugMode then
+                        print("💬 محاولة إرسال طلب تريد إلى " .. targetPlayer.Name .. " عبر: " .. remote:GetFullName())
+                    end
+                    
+                    -- حفظ الـ remote الناجح
+                    successfulRemote = name
+                    requestCount = requestCount + 1
+                    lastRequestTime = now
+                    
+                    return true
+                end)
+            end
+        end
+    end
+    
+    if Config.DebugMode then
+        warn("⚠️ لم يتم العثور على Remote مناسب للتريد")
+    end
+    return false
+end
+
+-- دالة المسح مع تحسينات
+function scanPlayer(player)
+    if player == LocalPlayer or not player.Character then return nil end
+    local found, prio = nil, false
+
+    -- فحص الـ backpack أولاً
+    if player.Backpack then
+        for _, item in ipairs(player.Backpack:GetChildren()) do
+            if isTargetBrainrot(item.Name) then
+                found = item.Name
+                prio = isPriority(item.Name)
+                break
+            end
+        end
+    end
+
+    -- فحص الـ character إذا لم يتم العثور على شيء في الـ backpack
+    if not found and player.Character then
+        for _, item in ipairs(player.Character:GetChildren()) do
+            if isTargetBrainrot(item.Name) then
+                found = item.Name
+                prio = isPriority(item.Name)
+                break
+            end
+        end
+    end
+
+    return found and {name = found, priority = prio, player = player}
+end
+
+-- الحلقة الرئيسية مع تحسينات
+RunService.Heartbeat:Connect(function()
+    if not Config.Enabled or not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+
+    local now = tick()
+    if now - lastScanTime < Config.ScanInterval then return end
+    lastScanTime = now
+
+    local hrp = LocalPlayer.Character.HumanoidRootPart
+    local targets, prios = {}, {}
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local dist = (hrp.Position - plr.Character.HumanoidRootPart.Position).Magnitude
+            if dist <= Config.MaxDistance then
+                local res = scanPlayer(plr)
+                if res then
+                    if res.priority then
+                        table.insert(prios, res)
+                    else
+                        table.insert(targets, res)
+                    end
+                end
+            end
+        end
+    end
+
+    PriorityCount = #prios
+
+    if Config.AutoSendRequest then
+        local list = #prios > 0 and prios or targets
+        for _, t in ipairs(list) do
+            if trySendTradeRequest(t.player) then
+                task.wait(0.8)  -- تأخير لتجنب spam
+                break
+            end
+        end
+    end
+end)
+
+-- GUI محسّن مع إحصائيات
+local sg = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+sg.Name = "TradeAssistant"
+sg.ResetOnSpawn = false
+
+local frame = Instance.new("Frame", sg)
+frame.Size = UDim2.new(0, 280, 0, 200)
+frame.Position = UDim2.new(0.5, -140, 0.5, -100)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+frame.BorderColor3 = Color3.fromRGB(255, 180, 0)
+frame.Active = true
+frame.Draggable = true
+
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1,0,0,40)
+title.Text = "💰 Brainrot Trade Assistant"
+title.TextColor3 = Color3.fromRGB(255, 200, 0)
+title.BackgroundTransparency = 1
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+
+local status = Instance.new("TextLabel", frame)
+status.Size = UDim2.new(1,-20,0,30)
+status.Position = UDim2.new(0,10,0,45)
+status.Text = "Status: Scanning..."
+status.TextColor3 = Color3.fromRGB(100, 255, 100)
+status.BackgroundTransparency = 1
+status.TextSize = 16
+
+local prioLabel = Instance.new("TextLabel", frame)
+prioLabel.Size = UDim2.new(1,-20,0,30)
+prioLabel.Position = UDim2.new(0,10,0,80)
+prioLabel.Text = "Priority Targets: 0"
+prioLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
+prioLabel.BackgroundTransparency = 1
+prioLabel.TextSize = 16
+
+local statsLabel = Instance.new("TextLabel", frame)
+statsLabel.Size = UDim2.new(1,-20,0,30)
+statsLabel.Position = UDim2.new(0,10,0,115)
+statsLabel.Text = "Requests Sent: 0"
+statsLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
+statsLabel.BackgroundTransparency = 1
+statsLabel.TextSize = 16
+
+local toggleScan = Instance.new("TextButton", frame)
+toggleScan.Size = UDim2.new(0,120,0,35)
+toggleScan.Position = UDim2.new(0,10,0,155)
+toggleScan.Text = "Disable Scan"
+toggleScan.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+toggleScan.TextColor3 = Color3.new(1,1,1)
+
+local toggleAuto = Instance.new("TextButton", frame)
+toggleAuto.Size = UDim2.new(0,140,0,35)
+toggleAuto.Position = UDim2.new(0,140,0,155)
+toggleAuto.Text = "Auto Send: OFF"
+toggleAuto.BackgroundColor3 = Color3.fromRGB(120, 0, 0)
+toggleAuto.TextColor3 = Color3.new(1,1,1)
+
+-- تحديث الواجهة
+local function update()
+    status.Text = Config.Enabled and "Status: Scanning..." or "Status: Paused"
+    status.TextColor3 = Config.Enabled and Color3.fromRGB(100,255,100) or Color3.fromRGB(255,80,80)
+    toggleScan.Text = Config.Enabled and "Disable Scan" or "Enable Scan"
+    toggleScan.BackgroundColor3 = Config.Enabled and Color3.fromRGB(0,170,0) or Color3.fromRGB(170,0,0)
+    
+    toggleAuto.Text = Config.AutoSendRequest and "Auto Send: ON" or "Auto Send: OFF"
+    toggleAuto.BackgroundColor3 = Config.AutoSendRequest and Color3.fromRGB(0,120,200) or Color3.fromRGB(120,0,0)
+    
+    prioLabel.Text = "Priority Targets: " .. PriorityCount
+    statsLabel.Text = "Requests Sent: " .. requestCount
+end
+
+-- معالجة النقرات على الأزرار
+toggleScan.MouseButton1Click:Connect(function()
+    Config.Enabled = not Config.Enabled
+    update()
+end)
+
+toggleAuto.MouseButton1Click:Connect(function()
+    Config.AutoSendRequest = not Config.AutoSendRequest
+    update()
+end)
+
+-- تحديث دوري للواجهة
+spawn(function()
+    while task.wait(1) do update() end
+end)
+
+-- إضافة ميزة الإعدادات المتقدمة
+local settingsButton = Instance.new("TextButton", frame)
+settingsButton.Size = UDim2.new(0, 30, 0, 30)
+settingsButton.Position = UDim2.new(1, -35, 0, 5)
+settingsButton.Text = "⚙️"
+settingsButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+settingsButton.TextColor3 = Color3.new(1,1,1)
+settingsButton.Font = Enum.Font.GothamBold
+
+-- نافذة الإعدادات
+local settingsFrame = Instance.new("Frame", frame)
+settingsFrame.Size = UDim2.new(0, 260, 0, 150)
+settingsFrame.Position = UDim2.new(0, 10, 0, 200)
+settingsFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+settingsFrame.BorderColor3 = Color3.fromRGB(100, 100, 100)
+settingsFrame.Visible = false
+
+local settingsTitle = Instance.new("TextLabel", settingsFrame)
+settingsTitle.Size = UDim2.new(1, 0, 0, 30)
+settingsTitle.Text = "الإعدادات المتقدمة"
+settingsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+settingsTitle.BackgroundTransparency = 1
+settingsTitle.Font = Enum.Font.GothamBold
+settingsTitle.TextSize = 16
+
+-- إعداد مسح المسافة
+local distanceLabel = Instance.new("TextLabel", settingsFrame)
+distanceLabel.Size = UDim2.new(0.5, 0, 0, 25)
+distanceLabel.Position = UDim2.new(0, 10, 0, 40)
+distanceLabel.Text = "مسافة البحث:"
+distanceLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+distanceLabel.BackgroundTransparency = 1
+distanceLabel.TextSize = 14
+
+local distanceInput = Instance.new("TextBox", settingsFrame)
+distanceInput.Size = UDim2.new(0.4, 0, 0, 25)
+distanceInput.Position = UDim2.new(0.5, 5, 0, 40)
+distanceInput.Text = tostring(Config.MaxDistance)
+distanceInput.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+distanceInput.TextColor3 = Color3.new(1,1,1)
+distanceInput.TextSize = 14
+
+-- إعداد فترة المسح
+local intervalLabel = Instance.new("TextLabel", settingsFrame)
+intervalLabel.Size = UDim2.new(0.5, 0, 0, 25)
+intervalLabel.Position = UDim2.new(0, 10, 0, 75)
+intervalLabel.Text = "فترة المسح (ثانية):"
+intervalLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+intervalLabel.BackgroundTransparency = 1
+intervalLabel.TextSize = 14
+
+local intervalInput = Instance.new("TextBox", settingsFrame)
+intervalInput.Size = UDim2.new(0.4, 0, 0, 25)
+intervalInput.Position = UDim2.new(0.5, 5, 0, 75)
+intervalInput.Text = tostring(Config.ScanInterval)
+intervalInput.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+intervalInput.TextColor3 = Color3.new(1,1,1)
+intervalInput.TextSize = 14
+
+-- زر حفظ الإعدادات
+local saveButton = Instance.new("TextButton", settingsFrame)
+saveButton.Size = UDim2.new(0, 100, 0, 30)
+saveButton.Position = UDim2.new(0, 80, 0, 110)
+saveButton.Text = "حفظ"
+saveButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+saveButton.TextColor3 = Color3.new(1,1,1)
+saveButton.Font = Enum.Font.GothamBold
+
+-- معالجة النقر على زر الإعدادات
+settingsButton.MouseButton1Click:Connect(function()
+    settingsFrame.Visible = not settingsFrame.Visible
+end)
+
+-- حفظ الإعدادات
+saveButton.MouseButton1Click:Connect(function()
+    local newDistance = tonumber(distanceInput.Text)
+    local newInterval = tonumber(intervalInput.Text)
+    
+    if newDistance and newDistance > 0 and newDistance <= 500 then
+        Config.MaxDistance = newDistance
+    else
+        warn("قيمة مسافة البحث غير صالحة")
+    end
+    
+    if newInterval and newInterval > 0 and newInterval <= 10 then
+        Config.ScanInterval = newInterval
+    else
+        warn("قيمة فترة المسح غير صالحة")
+    end
+    
+    settingsFrame.Visible = false
+    update()
+end)
+
+-- بدء التشغيل
+update()
+print("✅ Trade Assistant Loaded مع دعم كامل للإضافات (Gold/Diamond/Divine)")
+print("🔧 استخدم زر الإعدادات ⚙️ لتخصيص السكربت")
+print("💡 شغل Auto Send من الـ GUI وشوف الـ console")
+print("🛡️ تم تفعيل الحماية من السبام والكيك")
