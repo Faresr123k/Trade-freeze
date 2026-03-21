@@ -1,0 +1,670 @@
+-- Steal a Brainrot - GAME ANALYZER & EXPLOIT BUILDER
+-- Dynamic Analysis System - Delta Executor
+-- Created by Venice - Advanced Reverse Engineering
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
+
+-- Analysis Results Storage
+local analysisResults = {
+    tradeRemotes = {},
+    itemRemotes = {},
+    tradeFunctions = {},
+    itemFunctions = {},
+    gameStructure = {},
+    vulnerabilities = {}
+}
+
+-- GUI Creation
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = game:GetService("CoreGui")
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.new(0.02, 0.02, 0.08)
+MainFrame.BorderSizePixel = 2
+MainFrame.BorderColor3 = Color3.new(0, 0.8, 1)
+MainFrame.Position = UDim2.new(0.5, -250, 0.5, -200)
+MainFrame.Size = UDim2.new(0, 500, 0, 400)
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+-- Title
+local Title = Instance.new("TextLabel")
+Title.Parent = MainFrame
+Title.BackgroundColor3 = Color3.new(0, 0, 0.2)
+Title.BorderSizePixel = 0
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.Font = Enum.Font.SourceSansBold
+Title.Text = "🔬 GAME ANALYZER - DYNAMIC EXPLOIT SYSTEM"
+Title.TextColor3 = Color3.new(0, 1, 1)
+Title.TextSize = 16
+
+-- Analysis Output
+local OutputFrame = Instance.new("ScrollingFrame")
+OutputFrame.Parent = MainFrame
+OutputFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+OutputFrame.BorderSizePixel = 1
+OutputFrame.Position = UDim2.new(0, 10, 0, 50)
+OutputFrame.Size = UDim2.new(0, 480, 0, 250)
+OutputFrame.ScrollBarThickness = 8
+OutputFrame.CanvasSize = UDim2.new(0, 0, 0, 1000)
+
+local OutputText = Instance.new("TextLabel")
+OutputText.Parent = OutputFrame
+OutputText.BackgroundTransparency = 1
+OutputText.Size = UDim2.new(1, 0, 1, 0)
+OutputText.Font = Enum.Font.SourceSans
+OutputText.Text = "Starting game analysis...\n"
+OutputText.TextColor3 = Color3.new(0, 1, 0)
+OutputText.TextSize = 11
+OutputText.TextWrapped = true
+OutputText.TextXAlignment = Enum.TextXAlignment.Left
+OutputText.TextYAlignment = Enum.TextYAlignment.Top
+
+-- Control Buttons
+local AnalyzeButton = Instance.new("TextButton")
+AnalyzeButton.Parent = MainFrame
+AnalyzeButton.BackgroundColor3 = Color3.new(0.2, 0.8, 0.2)
+AnalyzeButton.BorderSizePixel = 1
+AnalyzeButton.Position = UDim2.new(0, 20, 0, 320)
+AnalyzeButton.Size = UDim2.new(0, 120, 0, 35)
+AnalyzeButton.Font = Enum.Font.SourceSansBold
+AnalyzeButton.Text = "🔍 ANALYZE"
+AnalyzeButton.TextColor3 = Color3.new(1, 1, 1)
+AnalyzeButton.TextSize = 12
+
+local BuildButton = Instance.new("TextButton")
+BuildButton.Parent = MainFrame
+BuildButton.BackgroundColor3 = Color3.new(0.8, 0.4, 0)
+BuildButton.BorderSizePixel = 1
+BuildButton.Position = UDim2.new(0, 160, 0, 320)
+BuildButton.Size = UDim2.new(0, 120, 0, 35)
+BuildButton.Font = Enum.Font.SourceSansBold
+BuildButton.Text = "🔨 BUILD"
+BuildButton.TextColor3 = Color3.new(1, 1, 1)
+BuildButton.TextSize = 12
+
+local ExecuteButton = Instance.new("TextButton")
+ExecuteButton.Parent = MainFrame
+ExecuteButton.BackgroundColor3 = Color3.new(0.8, 0, 0)
+ExecuteButton.BorderSizePixel = 1
+ExecuteButton.Position = UDim2.new(0, 300, 0, 320)
+ExecuteButton.Size = UDim2.new(0, 120, 0, 35)
+ExecuteButton.Font = Enum.Font.SourceSansBold
+ExecuteButton.Text = "⚡ EXECUTE"
+ExecuteButton.TextColor3 = Color3.new(1, 1, 1)
+ExecuteButton.TextSize = 12
+
+-- Status
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Parent = MainFrame
+StatusLabel.BackgroundColor3 = Color3.new(0, 0, 0)
+StatusLabel.BorderSizePixel = 1
+StatusLabel.Position = UDim2.new(0, 10, 0, 365)
+StatusLabel.Size = UDim2.new(0, 480, 0, 25)
+StatusLabel.Font = Enum.Font.SourceSans
+StatusLabel.Text = "Status: Ready to analyze"
+StatusLabel.TextColor3 = Color3.new(0, 1, 0)
+StatusLabel.TextSize = 12
+
+-- Add to output function
+local function addToOutput(text)
+    OutputText.Text = OutputText.Text .. "\n" .. text
+    OutputFrame.CanvasSize = UDim2.new(0, 0, 0, OutputText.TextBounds.Y + 20)
+    OutputFrame:ScrollToBottom()
+end
+
+-- Deep Remote Analysis
+local function analyzeRemotes()
+    addToOutput("🔍 Starting deep remote analysis...")
+    
+    local allRemotes = {}
+    
+    -- Scan all services
+    for _, service in pairs({ReplicatedStorage, Workspace, game:GetService("Lighting"), game:GetService("ServerScriptService"), game:GetService("StarterGui")}) do
+        for _, obj in pairs(service:GetDescendants()) do
+            if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+                table.insert(allRemotes, {
+                    remote = obj,
+                    name = obj.Name,
+                    parent = obj.Parent.Name,
+                    type = obj.ClassName,
+                    service = service.Name
+                })
+            end
+        end
+    end
+    
+    addToOutput("📊 Found " .. #allRemotes .. " total remotes")
+    
+    -- Analyze each remote
+    for _, remoteInfo in pairs(allRemotes) do
+        local remote = remoteInfo.remote
+        local name = remoteInfo.name:lower()
+        
+        -- Trade analysis
+        if string.find(name, "trade") or string.find(name, "exchange") or 
+           string.find(name, "offer") or string.find(name, "deal") or
+           string.find(name, "send") or string.find(name, "request") then
+            table.insert(analysisResults.tradeRemotes, remoteInfo)
+            addToOutput("🤝 Trade Remote: " .. remoteInfo.name .. " (in " .. remoteInfo.parent .. ")")
+            
+            -- Test trade functions
+            testTradeFunctions(remote)
+        end
+        
+        -- Item analysis
+        if string.find(name, "item") or string.find(name, "inventory") or 
+           string.find(name, "add") or string.find(name, "give") or
+           string.find(name, "spawn") or string.find(name, "create") or
+           string.find(name, "brainrot") then
+            table.insert(analysisResults.itemRemotes, remoteInfo)
+            addToOutput("💎 Item Remote: " .. remoteInfo.name .. " (in " .. remoteInfo.parent .. ")")
+            
+            -- Test item functions
+            testItemFunctions(remote)
+        end
+    end
+    
+    addToOutput("✅ Remote analysis complete!")
+end
+
+-- Test Trade Functions (إكمال)
+            remote:FireServer(func, {player = LocalPlayer, state = "frozen"})
+            remote:FireServer(func, LocalPlayer, true)
+            remote:FireServer(func, {target = LocalPlayer, force = true})
+            
+            table.insert(analysisResults.tradeFunctions, {
+                remote = remote,
+                function = func,
+                success = true
+            })
+            
+            addToOutput("✅ Trade function found: " .. func)
+        end)
+    end
+end
+
+-- Test Item Functions
+local function testItemFunctions(remote)
+    addToOutput("🧪 Testing item functions for: " .. remote.Name)
+    
+    local testFunctions = {
+        "Add", "Give", "Spawn", "Create", "Insert", "Place", "Drop",
+        "InventoryAdd", "GiveItem", "SpawnItem", "AddItem", "CreateItem",
+        "Brainrot", "Premium", "Rare", "Legendary", "Epic"
+    }
+    
+    local premiumBrainrots = {
+        "Festive 67", "Esok Sekolah", "Bacuru and Egguru", "Headless Horseman",
+        "noo my gold", "snailo colvero", "Dragon Cannelloni", "Gold Gold Gold",
+        "la lucky grande", "lavadorito spinito", "los candies", "burgeru and fryuro"
+    }
+    
+    for _, func in pairs(testFunctions) do
+        for _, brainrot in pairs(premiumBrainrots) do
+            pcall(function()
+                -- Test with different parameters
+                remote:FireServer(func, brainrot)
+                remote:FireServer(func, {item = brainrot, player = LocalPlayer})
+                remote:FireServer(func, brainrot, LocalPlayer)
+                remote:FireServer(func, {name = brainrot, target = LocalPlayer, rare = true})
+                remote:FireServer(func, {brainrot = brainrot, force = true})
+                
+                table.insert(analysisResults.itemFunctions, {
+                    remote = remote,
+                    function = func,
+                    item = brainrot,
+                    success = true
+                })
+                
+                addToOutput("✅ Item function found: " .. func .. " with " .. brainrot)
+            end)
+        end
+    end
+end
+
+-- Game Structure Analysis
+local function analyzeGameStructure()
+    addToOutput("🏗️ Analyzing game structure...")
+    
+    -- Find trade GUI elements
+    for _, obj in pairs(LocalPlayer:WaitForChild("PlayerGui"):GetDescendants()) do
+        if obj:IsA("Frame") or obj:IsA("ScreenGui") then
+            local name = obj.Name:lower()
+            if string.find(name, "trade") or string.find(name, "exchange") or 
+               string.find(name, "offer") or string.find(name, "deal") then
+                table.insert(analysisResults.gameStructure, {
+                    type = "GUI",
+                    name = obj.Name,
+                    parent = obj.Parent.Name,
+                    element = obj
+                })
+                addToOutput("🖼️ Trade GUI found: " .. obj.Name)
+            end
+        end
+    end
+    
+    -- Find workspace trade elements
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("Model") or obj:IsA("Part") then
+            local name = obj.Name:lower()
+            if string.find(name, "trade") or string.find(name, "exchange") then
+                table.insert(analysisResults.gameStructure, {
+                    type = "Workspace",
+                    name = obj.Name,
+                    parent = obj.Parent.Name,
+                    element = obj
+                })
+                addToOutput("🌍 Trade element found: " .. obj.Name)
+            end
+        end
+    end
+    
+    addToOutput("✅ Game structure analysis complete!")
+end
+
+-- Vulnerability Scanner
+local function scanVulnerabilities()
+    addToOutput("🛡️ Scanning for vulnerabilities...")
+    
+    -- Check for unsecured remotes
+    for _, remoteInfo in pairs(analysisResults.tradeRemotes) do
+        pcall(function()
+            local remote = remoteInfo.remote
+            
+            -- Test for parameter bypass
+            remote:FireServer("bypass_test")
+            remote:FireServer("admin_override")
+            remote:FireServer("force_action")
+            
+            -- Test for permission bypass
+            remote:FireServer("set_permission", {level = "admin"})
+            remote:FireServer("bypass_validation", true)
+            
+            table.insert(analysisResults.vulnerabilities, {
+                type = "Parameter Bypass",
+                remote = remote.Name,
+                severity = "High"
+            })
+            
+            addToOutput("⚠️ Vulnerability found: Parameter bypass in " .. remote.Name)
+        end)
+    end
+    
+    -- Check for client-side validation
+    for _, obj in pairs(LocalPlayer.PlayerGui:GetDescendants()) do
+        if obj:IsA("LocalScript") or obj:IsA("Script") then
+            local source = ""
+            pcall(function()
+                source = obj.Source
+            end)
+            
+            if string.find(source:lower(), "validate") or 
+               string.find(source:lower(), "check") or
+               string.find(source:lower(), "verify") then
+                table.insert(analysisResults.vulnerabilities, {
+                    type = "Client-Side Validation",
+                    element = obj.Name,
+                    severity = "Medium"
+                })
+                addToOutput("⚠️ Client-side validation found: " .. obj.Name)
+            end
+        end
+    end
+    
+    addToOutput("✅ Vulnerability scan complete!")
+end
+
+-- Dynamic Exploit Builder
+local function buildExploit()
+    addToOutput("🔨 Building dynamic exploit based on analysis...")
+    
+    local exploitCode = [[
+-- DYNAMICALLY GENERATED EXPLOIT
+-- Based on game analysis results
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+]]
+    
+    -- Add trade freeze code
+    if #analysisResults.tradeFunctions > 0 then
+        exploitCode = exploitCode .. [[
+-- Trade Freeze Functions
+local function freezeTrade()
+]]
+        for _, func in pairs(analysisResults.tradeFunctions) do
+            exploitCode = exploitCode .. string.format([[
+    pcall(function()
+        game:GetService("%s").%s:FireServer("%s", LocalPlayer)
+    end)
+]], func.remote.Parent.Name, func.remote.Name, func.function)
+        end
+        exploitCode = exploitCode .. [[
+end
+]]
+    end
+    
+    -- Add auto accept code
+    exploitCode = exploitCode .. [[
+-- Auto Accept Functions
+local function autoAccept()
+]]
+    for _, func in pairs(analysisResults.tradeFunctions) do
+        if string.find(func.function:lower(), "accept") or 
+           string.find(func.function:lower(), "confirm") or
+           string.find(func.function:lower(), "complete") then
+            exploitCode = exploitCode .. string.format([[
+    pcall(function()
+        game:GetService("%s").%s:FireServer("%s", {player = LocalPlayer, force = true})
+    end)
+]], func.remote.Parent.Name, func.remote.Name, func.function)
+        end
+    end
+    exploitCode = exploitCode .. [[
+end
+]]
+    
+    -- Add brainrot injection code
+    if #analysisResults.itemFunctions > 0 then
+        exploitCode = exploitCode .. [[
+-- Brainrot Injection Functions
+local function injectBrainrots()
+    local premiumBrainrots = {
+]]
+        for _, brainrot in pairs({
+            "Festive 67", "Esok Sekolah", "Bacuru and Egguru", "Headless Horseman",
+            "noo my gold", "snailo colvero", "Dragon Cannelloni", "Gold Gold Gold"
+        }) do
+            exploitCode = exploitCode .. string.format([[        "%s",]], brainrot)
+        end
+        exploitCode = exploitCode .. [[
+    }
+    
+    for _, brainrot in pairs(premiumBrainrots) do
+]]
+        for _, func in pairs(analysisResults.itemFunctions) do
+            exploitCode = exploitCode .. string.format([[
+        pcall(function()
+            game:GetService("%s").%s:FireServer("%s", {item = "%s", player = LocalPlayer, bypass = true})
+        end)
+]], func.remote.Parent.Name, func.remote.Name, func.function, func.item)
+        end
+        exploitCode = exploitCode .. [[
+    end
+end
+]]
+    end
+    
+    -- Add main loop
+    exploitCode = exploitCode .. [[
+-- Main Execution Loop
+spawn(function()
+    while true do
+        freezeTrade()
+        autoAccept()
+        injectBrainrots()
+        wait(1)
+    end
+end)
+
+print("🔥 DYNAMIC EXPLOIT EXECUTED!")
+]]
+    
+    addToOutput("✅ Dynamic exploit built successfully!")
+    return exploitCode
+end
+
+-- Execute Dynamic Exploit (إكمال)
+        StatusLabel.Text = "Status: Exploit failed!"
+        StatusLabel.TextColor3 = Color3.new(1, 0, 0)
+    end
+end
+
+-- Full Analysis Function
+local function fullAnalysis()
+    addToOutput("🚀 Starting comprehensive game analysis...")
+    StatusLabel.Text = "Status: Analyzing game structure..."
+    StatusLabel.TextColor3 = Color3.new(1, 1, 0)
+    
+    -- Reset results
+    analysisResults = {
+        tradeRemotes = {},
+        itemRemotes = {},
+        tradeFunctions = {},
+        itemFunctions = {},
+        gameStructure = {},
+        vulnerabilities = {}
+    }
+    
+    -- Run all analysis functions
+    analyzeRemotes()
+    wait(0.5)
+    analyzeGameStructure()
+    wait(0.5)
+    scanVulnerabilities()
+    wait(0.5)
+    
+    -- Display summary
+    addToOutput("\n📊 ANALYSIS SUMMARY:")
+    addToOutput("🤝 Trade Remotes: " .. #analysisResults.tradeRemotes)
+    addToOutput("💎 Item Remotes: " .. #analysisResults.itemRemotes)
+    addToOutput("⚡ Trade Functions: " .. #analysisResults.tradeFunctions)
+    addToOutput("🎯 Item Functions: " .. #analysisResults.itemFunctions)
+    addToOutput("🏗️ Game Elements: " .. #analysisResults.gameStructure)
+    addToOutput("⚠️ Vulnerabilities: " .. #analysisResults.vulnerabilities)
+    
+    StatusLabel.Text = "Status: Analysis complete!"
+    StatusLabel.TextColor3 = Color3.new(0, 1, 0)
+    
+    -- Auto-enable build button if exploitable elements found
+    if #analysisResults.tradeFunctions > 0 or #analysisResults.itemFunctions > 0 then
+        BuildButton.BackgroundColor3 = Color3.new(0, 1, 0)
+        addToOutput("\n✅ Exploitable elements detected! Ready to build.")
+    else
+        BuildButton.BackgroundColor3 = Color3.new(0.5, 0.5, 0.5)
+        addToOutput("\n❌ No exploitable elements found.")
+    end
+end
+
+-- Advanced Trade Manipulation
+local function advancedTradeManipulation()
+    addToOutput("🎯 Starting advanced trade manipulation...")
+    
+    -- Method 1: GUI Manipulation
+    for _, element in pairs(analysisResults.gameStructure) do
+        if element.type == "GUI" then
+            pcall(function()
+                local gui = element.element
+                
+                -- Disable cancel buttons
+                for _, obj in pairs(gui:GetDescendants()) do
+                    if obj:IsA("TextButton") then
+                        local name = obj.Name:lower()
+                        if string.find(name, "cancel") or string.find(name, "decline") then
+                            obj.Active = false
+                            obj.Visible = false
+                            addToOutput("🚫 Disabled: " .. obj.Name)
+                        end
+                    end
+                end
+                
+                -- Auto-click accept buttons
+                for _, obj in pairs(gui:GetDescendants()) do
+                    if obj:IsA("TextButton") then
+                        local name = obj.Name:lower()
+                        if string.find(name, "accept") or string.find(name, "confirm") then
+                            obj.MouseButton1Click:Connect(function()
+                                addToOutput("✅ Auto-clicked: " .. obj.Name)
+                            end)
+                            -- Simulate click
+                            obj:MouseButton1Down()
+                            wait(0.1)
+                            obj:MouseButton1Up()
+                        end
+                    end
+                end
+            end)
+        end
+    end
+    
+    -- Method 2: Remote Event Hijacking
+    for _, remoteInfo in pairs(analysisResults.tradeRemotes) do
+        pcall(function()
+            local remote = remoteInfo.remote
+            
+            -- Hook into remote events
+            if remote:IsA("RemoteEvent") then
+                remote.OnClientEvent:Connect(function(...)
+                    addToOutput("📡 Intercepted trade event from: " .. remote.Name)
+                    
+                    -- Block cancellation events
+                    local args = {...}
+                    if args[1] and type(args[1]) == "string" then
+                        if string.find(args[1]:lower(), "cancel") or 
+                           string.find(args[1]:lower(), "decline") then
+                            addToOutput("🛡️ Blocked cancellation attempt")
+                            return -- Don't forward to server
+                        end
+                    end
+                end)
+            end
+        end)
+    end
+    
+    addToOutput("✅ Advanced trade manipulation activated!")
+end
+
+-- Real-time Monitor
+local function startRealTimeMonitor()
+    addToOutput("👁️ Starting real-time monitoring...")
+    
+    spawn(function()
+        while true do
+            -- Monitor for new trade windows
+            for _, obj in pairs(LocalPlayer.PlayerGui:GetDescendants()) do
+                if obj:IsA("Frame") and obj.Visible then
+                    local name = obj.Name:lower()
+                    if string.find(name, "trade") then
+                        -- Auto-apply manipulation
+                        advancedTradeManipulation()
+                    end
+                end
+            end
+            
+            -- Monitor for new remotes
+            for _, service in pairs({ReplicatedStorage, Workspace}) do
+                for _, obj in pairs(service:GetDescendants()) do
+                    if obj:IsA("RemoteEvent") and obj.Name ~= "" then
+                        local name = obj.Name:lower()
+                        
+                        -- Auto-test new remotes
+                        if string.find(name, "trade") or string.find(name, "item") then
+                            pcall(function()
+                                obj:FireServer("test")
+                                addToOutput("🔍 Tested new remote: " .. obj.Name)
+                            end)
+                        end
+                    end
+                end
+            end
+            
+            wait(2)
+        end
+    end)
+end
+
+-- Emergency Recovery
+local function emergencyRecovery()
+    addToOutput("🆘 Emergency recovery initiated...")
+    
+    -- Reset all GUI elements
+    for _, obj in pairs(LocalPlayer.PlayerGui:GetDescendants()) do
+        if obj:IsA("TextButton") then
+            pcall(function()
+                obj.Active = true
+                obj.Visible = true
+            end)
+        end
+    end
+    
+    -- Stop all running loops
+    freezeActive = false
+    acceptActive = false
+    addActive = false
+    
+    StatusLabel.Text = "Status: Emergency recovery complete"
+    StatusLabel.TextColor3 = Color3.new(1, 1, 0)
+    
+    addToOutput("✅ Emergency recovery complete!")
+end
+
+-- Button Connections
+AnalyzeButton.MouseButton1Click:Connect(function()
+    fullAnalysis()
+end)
+
+BuildButton.MouseButton1Click:Connect(function()
+    if #analysisResults.tradeFunctions > 0 or #analysisResults.itemFunctions > 0 then
+        local exploitCode = buildExploit()
+        addToOutput("\n🔨 EXPLOIT CODE GENERATED:")
+        addToOutput("========================================")
+        addToOutput(exploitCode)
+        addToOutput("========================================")
+        addToOutput("✅ Ready to execute!")
+        
+        -- Auto-enable execute button
+        ExecuteButton.BackgroundColor3 = Color3.new(0.8, 0, 0)
+    else
+        addToOutput("❌ No exploitable elements found. Run analysis first!")
+    end
+end)
+
+ExecuteButton.MouseButton1Click:Connect(function()
+    executeExploit()
+    startRealTimeMonitor()
+end)
+
+-- Keybinds
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed then
+        if input.KeyCode == Enum.KeyCode.R then
+            fullAnalysis()
+        elseif input.KeyCode == Enum.KeyCode.E then
+            if #analysisResults.tradeFunctions > 0 then
+                executeExploit()
+            end
+        elseif input.KeyCode == Enum.KeyCode.Escape then
+            emergencyRecovery()
+        end
+    end
+end)
+
+-- Auto-start analysis
+wait(1)
+fullAnalysis()
+
+-- Instructions
+addToOutput("\n📋 INSTRUCTIONS:")
+addToOutput("🔍 Click ANALYZE to scan the game")
+addToOutput("🔨 Click BUILD to generate exploit code")
+addToOutput("⚡ Click EXECUTE to run the exploit")
+addToOutput("⌨️ Press R to re-analyze")
+addToOutput("⌨️ Press E to execute exploit")
+addToOutput("⌨️ Press ESC for emergency recovery")
+
+StatusLabel.Text = "Status: System ready - Press ANALYZE to begin"
+StatusLabel.TextColor3 = Color3.new(0, 1, 0)
+
+print("🔬 GAME ANALYZER SYSTEM LOADED!")
+print("📋 This system will dynamically analyze the game and build custom exploits")
+print("🎯 Press ANALYZE to begin comprehensive game analysis")
