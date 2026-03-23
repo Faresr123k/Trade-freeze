@@ -1,187 +1,198 @@
 --[[
-سكربت استغلال ثغرات التايمر في ماكينة الترايدينغ - steal a brainrot
-مخصص للعمل مع Delta Executor على الموبايل والويندوز
-مضاد للطرد من السيرفر (anti_kick)
-الإصدار: 1.0
+    🎯 Brainrot Trade Visual Script
+    📱 Compatible: Delta Executor (Mobile)
+    🔧 Concept: Visual Deception for Roblox Trades
+    ⚠️ Educational Purpose Only
 --]]
 
--- متغيرات عامة
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local HttpService = game:GetService("HttpService")
+-- إعدادات السكربت
+local Config = {
+    Enabled = true,
+    DebugMode = false,
+    TargetItem = "Meawl", -- أقوى براينروت من القائمة
+    FakeMultiplier = "Rainbow", -- ×10
+    AnimationSpeed = 0.1
+}
 
--- مرحلة الدخول (Injection / Execution)
-print("[TRADE EXPLOIT] بدء تشغيل السكربت...")
+-- قائمة البراينروت من الأضعف للأقوى
+local BrainrotRanking = {
+    [1] = "Los mobilis",
+    [2] = "Bacuru and Egguru",
+    [3] = "Esok Sekolah",
+    [4] = "Spaghetti Tualetti",
+    [5] = "Noo my gold",
+    [6] = "Money Money Puggy",
+    [7] = "Nuclearo dinossauro",
+    [8] = "Tang Tang Keletang",
+    [9] = "Ketupat Kepat",
+    [10] = "Nacho Spyder",
+    [11] = "Ketchuru and Musturu",
+    [12] = "Evildon",
+    [13] = "TicTac Sahur",
+    [14] = "Los bros",
+    [15] = "Las sis",
+    [16] = "La jolly grande",
+    [17] = "La Romantic grande",
+    [18] = "La ginger Sekolah",
+    [19] = "Los primos",
+    [20] = "Swag Soda",
+    [21] = "Tralaledon",
+    [22] = "Gobblino Uniciclino",
+    [23] = "Swaggy Bros",
+    [24] = "W or L",
+    [25] = "Garama and Madundung",
+    [26] = "La Taco Combinasion",
+    [27] = "Popcuro and Fizzuru",
+    [28] = "Cooki and Milki",
+    [29] = "Capitano Moby",
+    [30] = "Dragon Cannelloni",
+    [31] = "La Supreme Combinasion",
+    [32] = "Hydra Dragon Cannelloni",
+    [33] = "Strawberry Elephant",
+    [34] = "Meawl"
+}
 
--- حماية ضد الطرد (anti_kick)
-local function antiKick()
-    local oldKick
-    oldKick = hookfunction(LocalPlayer.Kick, function(...)
-        warn("[ANTI-KICK] تم محاولة طردك، تم إلغاؤها!")
-        return nil
-    end)
-    
-    -- حماية إضافية ضد الطرد عن بعد
-    local connection
-    connection = LocalPlayer:GetPropertyChangedSignal("Parent"):Connect(function()
-        if not LocalPlayer.Parent then
-            warn("[ANTI-KICK] تمت محاولة طردك عن بعد، يتم إعادة الاتصال...")
-            connection:Disconnect()
-            -- إعادة الاتصال بالسيرفر
-            game:Load("https://www.roblox.com/games/PLACEID/steal-a-brainrot")
-        end
-    end)
-end
+-- قائمة المضاعفات
+local Multipliers = {
+    ["Rainbow"] = "×10",
+    ["Divine"] = "×10",
+    ["Cursed"] = "×9",
+    ["Radioactive"] = "×8.5",
+    ["Yin Yang"] = "×7.5",
+    ["Galaxy"] = "×7",
+    ["Lava"] = "×6",
+    ["Celestial"] = "Event",
+    ["Candy"] = "×4",
+    ["Bloodrot"] = "×2",
+    ["Diamond"] = "×1.5",
+    ["Gold"] = "×1.25"
+}
 
--- مرحلة المراقبة (Monitoring)
-local function findTradeMachine()
-    -- البحث عن ماكينة الترايدينغ
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj.Name:lower():find("trade") and obj:IsA("Model") then
+-- الوظائف الأساسية
+local VisualScript = {}
+
+function VisualScript:FindTradeWindow()
+    -- البحث عن نافذة الترايد
+    for _, obj in ipairs(game.Players.LocalPlayer.PlayerGui:GetChildren()) do
+        if obj.Name:find("Trade") or obj.Name:find("Trading") then
             return obj
         end
     end
     return nil
 end
 
--- مرحلة تحليل الحالة (State Tracking)
-local tradeState = {
-    isActive = false,
-    currentItems = {},
-    partnerItems = {},
-    timeRemaining = 0,
-    acceptButton = nil,
-    lastChangeTime = 0
-}
-
--- مرحلة الانتظار (Timing Window)
-local function getOptimalTiming()
-    -- حساب أفضل توقيت لتغيير العناصر
-    -- عندما يكون اللاعب على وشك الضغط على قبول أو قبل انتهاء العدّاد
-    if tradeState.timeRemaining < 1.5 and tradeState.timeRemaining > 0.5 then
-        return true -- اللحظة المثالية للتغيير
+function VisualScript:GetItemSlots(tradeWindow)
+    -- الحصول على خانات العناصر
+    local slots = {}
+    for _, slot in ipairs(tradeWindow:GetDescendants()) do
+        if slot.Name:find("Slot") or slot.Name:find("Item") then
+            table.insert(slots, slot)
+        end
     end
-    return false
+    return slots
 end
 
--- مرحلة التغيير (Visual Manipulation)
-local function manipulateTrade()
-    -- تغيير العناصر في الترايد بدون إعلام اللاعب
-    if not tradeState.isActive or not getOptimalTiming() then
-        return
-    end
+function VisualScript:CreateFakeLayer(originalSlot)
+    -- إنشاء طبقة وهمية
+    local fakeLayer = Instance.new("Frame")
+    fakeLayer.Size = originalSlot.Size
+    fakeLayer.Position = originalSlot.Position
+    fakeLayer.BackgroundTransparency = 1
+    fakeLayer.ZIndex = 10
+    fakeLayer.Parent = originalSlot.Parent
     
-    -- البحث عن وظيفة تغيير العناصر
-    local tradeEvent = ReplicatedStorage:FindFirstChild("TradeEvent")
-    if tradeEvent then
-        -- إزالة عنصر قيم بدون إعلام الواجهة
-        local valuableItem = findMostValuableItem(tradeState.partnerItems)
-        if valuableItem then
-            -- إرسال طلب تغيير للسيرفر
-            tradeEvent:FireServer("removeItem", valuableItem.id)
-            tradeState.lastChangeTime = tick()
-            print("[TRADE EXPLOIT] تمت إزالة عنصر قيم: " .. valuableItem.name)
+    -- إضافة صورة مزيفة
+    local fakeImage = Instance.new("ImageLabel")
+    fakeImage.Size = UDim2.new(1, 0, 1, 0)
+    fakeImage.Position = UDim2.new(0, 0, 0, 0)
+    fakeImage.BackgroundTransparency = 1
+    fakeImage.Image = "rbxassetid://123456789" -- أيدي صورة مزيفة
+    fakeImage.Parent = fakeLayer
+    
+    return fakeLayer
+end
+
+function VisualScript:ApplyVisualDeception()
+    local tradeWindow = self:FindTradeWindow()
+    if not tradeWindow then return end
+    
+    local slots = self:GetItemSlots(tradeWindow)
+    if #slots == 0 then return end
+    
+    -- اختيار أول خانة للتلاعب
+    local targetSlot = slots[1]
+    
+    -- إنشاء الطبقة الوهمية
+    local fakeLayer = self:CreateFakeLayer(targetSlot)
+    
+    -- إخفاء العنصر الأصلي
+    targetSlot.Visible = false
+    
+    -- عرض العنصر المزيف
+    fakeLayer.Visible = true
+    
+    -- تثبيت العرض
+    game:GetService("RunService").Heartbeat:Connect(function()
+        if fakeLayer and fakeLayer.Parent then
+            -- الحفاظ على الوهم
+            fakeLayer.ZIndex = 10
+        end
+    end)
+end
+
+function VisualScript:MonitorTradeState()
+    -- مراقبة حالة الترايد
+    while Config.Enabled do
+        local tradeWindow = self:FindTradeWindow()
+        if tradeWindow then
+            -- التحقق من وجود عداد أو زر قبول
+            local acceptButton = tradeWindow:FindFirstChild("Accept")
+            local countdown = tradeWindow:FindFirstChild("Countdown")
             
-            -- تأخير تحديث الواجهة
-            delay(0.1, function()
-                updateTradeUI()
-            end)
-        end
-    end
-end
-
--- مرحلة التنفيذ (Server Finalization)
-local function finalizeTrade()
-    -- التأكد من أن السيرفر يستخدم الحالة الأخيرة فقط
-    local finalizeEvent = ReplicatedStorage:FindFirstChild("FinalizeTrade")
-    if finalizeEvent then
-        finalizeEvent:FireServer(tradeState.currentItems)
-        print("[TRADE EXPLOIT] تم تنفيذ الترايد بالحالة الأخيرة")
-    end
-end
-
--- وظائف مساعدة
-local function findMostValuableItem(items)
-    -- البحث عن أغلى عنصر في قائمة العناصر
-    local mostValuable = nil
-    local highestValue = 0
-    
-    for _, item in pairs(items) do
-        if item.value > highestValue then
-            highestValue = item.value
-            mostValuable = item
-        end
-    end
-    
-    return mostValuable
-end
-
-local function updateTradeUI()
-    -- تحديث واجهة الترايد بشكل خفي
-    local tradeGui = LocalPlayer:FindFirstChild("PlayerGui"):FindFirstChild("TradeGui")
-    if tradeGui then
-        -- إخفاء التغييرات عن اللاعب
-        for _, itemFrame in pairs(tradeGui:GetDescendants()) do
-            if itemFrame:IsA("Frame") and itemFrame.Name:find("Item") then
-                itemFrame.Visible = false
-                delay(0.05, function()
-                    itemFrame.Visible = true
-                end)
+            if acceptButton or countdown then
+                -- تطبيق الخداع البصري
+                self:ApplyVisualDeception()
+                break
             end
         end
+        wait(0.5)
     end
 end
 
 -- تشغيل السكربت
-local function main()
-    -- تفعيل الحماية ضد الطرد
-    antiKick()
-    
-    -- البحث عن ماكينة الترايدينغ
-    local tradeMachine = findTradeMachine()
-    if not tradeMachine then
-        warn("[TRADE EXPLOIT] لم يتم العثور على ماكينة الترايدينغ")
-        return
+function VisualScript:Start()
+    if Config.DebugMode then
+        print("[Brainrot Visual] Script Started")
+        print("[Brainrot Visual] Target: " .. Config.TargetItem)
+        print("[Brainrot Visual] Multiplier: " .. Config.FakeMultiplier)
     end
     
-    -- مراقبة حالة الترايد
-    local function onTradeStateChanged(newState)
-        tradeState.isActive = newState.isActive
-        tradeState.currentItems = newState.currentItems
-        tradeState.partnerItems = newState.partnerItems
-        tradeState.timeRemaining = newState.timeRemaining
-        
-        -- عند بدء الترايد
-        if tradeState.isActive then
-            print("[TRADE EXPLOIT] بدء مراقبة الترايد...")
-            
-            -- مراقبة لحظة القبول
-            RunService.Heartbeat:Connect(function()
-                if tradeState.isActive then
-                    -- التحقق من وجود زر القبول
-                    local acceptButton = LocalPlayer:FindFirstChild("PlayerGui"):FindFirstChild("TradeGui"):FindFirstChild("AcceptButton")
-                    
-                    -- عندما يكون اللاعب على وشك الضغط على قبول
-                    if acceptButton and acceptButton.Visible and getOptimalTiming() then
-                        -- تنفيذ التلاعب بالعناصر
-                        manipulateTrade()
-                    end
-                end
-            end)
-        end
-    end
-    
-    -- ربط الأحداث
-    local tradeEvent = tradeMachine:FindFirstChild("TradeEvent")
-    if tradeEvent then
-        tradeEvent.OnClientEvent:Connect(onTradeStateChanged)
-    end
-    
-    print("[TRADE EXPLOIT] السكربت جاهز للعمل!")
+    -- بدء المراقبة
+    self:MonitorTradeState()
 end
 
--- بدء السكربت
-main()
+-- نقطة البداية
+VisualScript:Start()
+
+-- واجهة بسيطة للمستخدم
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 200, 0, 100)
+Frame.Position = UDim2.new(0, 10, 0, 100)
+Frame.BackgroundColor3 = Color3.new(0, 0, 0)
+Frame.BackgroundTransparency = 0.5
+Frame.Parent = ScreenGui
+
+local Label = Instance.new("TextLabel")
+Label.Size = UDim2.new(1, 0, 1, 0)
+Label.Position = UDim2.new(0, 0, 0, 0)
+Label.BackgroundTransparency = 1
+Label.Text = "Brainrot Visual\nActive"
+Label.TextColor3 = Color3.new(0, 1, 0)
+Label.Font = Enum.Font.SourceSansBold
+Label.TextSize = 18
+Label.Parent = Frame
+
+print("[Brainrot Visual] Script Loaded Successfully")
