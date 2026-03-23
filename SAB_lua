@@ -1,198 +1,284 @@
 --[[
-    🎯 Brainrot Trade Visual Script
+    🎯 Trade Visual Enhancement Script v2 (Mobile Optimized)
     📱 Compatible: Delta Executor (Mobile)
-    🔧 Concept: Visual Deception for Roblox Trades
+    🔧 Concept: Dynamic Visual Enhancement for Roblox Trades
     ⚠️ Educational Purpose Only
 --]]
 
 -- إعدادات السكربت
 local Config = {
     Enabled = true,
-    DebugMode = false,
-    TargetItem = "Meawl", -- أقوى براينروت من القائمة
-    FakeMultiplier = "Rainbow", -- ×10
-    AnimationSpeed = 0.1
+    DebugMode = true, -- شغلها عشان تشوف الأخطاء
+    TargetItemName = "Strawberry Elephant", -- تم التعديل
+    FakeMultiplierText = "×10 Rainbow",
+    FakeImageId = "rbxassetid://248295212434663" -- تم التعديل برقم Strawberry Elephant
 }
 
--- قائمة البراينروت من الأضعف للأقوى
-local BrainrotRanking = {
-    [1] = "Los mobilis",
-    [2] = "Bacuru and Egguru",
-    [3] = "Esok Sekolah",
-    [4] = "Spaghetti Tualetti",
-    [5] = "Noo my gold",
-    [6] = "Money Money Puggy",
-    [7] = "Nuclearo dinossauro",
-    [8] = "Tang Tang Keletang",
-    [9] = "Ketupat Kepat",
-    [10] = "Nacho Spyder",
-    [11] = "Ketchuru and Musturu",
-    [12] = "Evildon",
-    [13] = "TicTac Sahur",
-    [14] = "Los bros",
-    [15] = "Las sis",
-    [16] = "La jolly grande",
-    [17] = "La Romantic grande",
-    [18] = "La ginger Sekolah",
-    [19] = "Los primos",
-    [20] = "Swag Soda",
-    [21] = "Tralaledon",
-    [22] = "Gobblino Uniciclino",
-    [23] = "Swaggy Bros",
-    [24] = "W or L",
-    [25] = "Garama and Madundung",
-    [26] = "La Taco Combinasion",
-    [27] = "Popcuro and Fizzuru",
-    [28] = "Cooki and Milki",
-    [29] = "Capitano Moby",
-    [30] = "Dragon Cannelloni",
-    [31] = "La Supreme Combinasion",
-    [32] = "Hydra Dragon Cannelloni",
-    [33] = "Strawberry Elephant",
-    [34] = "Meawl"
-}
+-- خدمات Roblox
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
 
--- قائمة المضاعفات
-local Multipliers = {
-    ["Rainbow"] = "×10",
-    ["Divine"] = "×10",
-    ["Cursed"] = "×9",
-    ["Radioactive"] = "×8.5",
-    ["Yin Yang"] = "×7.5",
-    ["Galaxy"] = "×7",
-    ["Lava"] = "×6",
-    ["Celestial"] = "Event",
-    ["Candy"] = "×4",
-    ["Bloodrot"] = "×2",
-    ["Diamond"] = "×1.5",
-    ["Gold"] = "×1.25"
-}
+-- وظائف مساعدة
+local function log(message)
+    if Config.DebugMode then
+        warn("[Visual Enhancement]: " .. message)
+    end
+end
 
--- الوظائف الأساسية
-local VisualScript = {}
-
-function VisualScript:FindTradeWindow()
-    -- البحث عن نافذة الترايد
-    for _, obj in ipairs(game.Players.LocalPlayer.PlayerGui:GetChildren()) do
-        if obj.Name:find("Trade") or obj.Name:find("Trading") then
-            return obj
+local function findTradeUI()
+    local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+    
+    for _, gui in ipairs(playerGui:GetChildren()) do
+        if gui:IsA("ScreenGui") or gui:IsA("Frame") or gui:IsA("LayerCollector") then
+            if gui.Name:lower():find("trade") or gui.Name:lower():find("swap") or gui.Name:lower():find("exchange") then
+                log("Found potential trade UI: " .. gui.Name)
+                return gui
+            end
+            for _, child in ipairs(gui:GetDescendants()) do
+                if child.Name:lower():find("trade") or child.Name:lower():find("swap") then
+                    log("Found potential trade UI (descendant): " .. child:GetFullName())
+                    return child.Parent
+                end
+            end
         end
     end
+    
+    for _, frame in ipairs(playerGui:GetDescendants()) do
+        if frame:IsA("Frame") and frame.Size == UDim2.new(1, 0, 1, 0) and frame.Name ~= "TopBar" then
+            local hasAcceptButton = frame:FindFirstChild("Accept", true) or frame:FindFirstChild("Confirm", true)
+            local hasSlots = frame:FindFirstChild("Slot", true) or frame:FindFirstChild("Item", true)
+            if hasAcceptButton and hasSlots then
+                log("Found trade UI by structure: " .. frame.Name)
+                return frame
+            end
+        end
+    end
+    
     return nil
 end
 
-function VisualScript:GetItemSlots(tradeWindow)
-    -- الحصول على خانات العناصر
-    local slots = {}
-    for _, slot in ipairs(tradeWindow:GetDescendants()) do
-        if slot.Name:find("Slot") or slot.Name:find("Item") then
-            table.insert(slots, slot)
+local function getFirstItemSlot(tradeUI)
+    local possibleNames = {"Slot", "Item", "Offer", "ItemSlot", "YourOffer"}
+    
+    for _, name in ipairs(possibleNames) do
+        local slot = tradeUI:FindFirstChild(name, true)
+        if slot and (slot:IsA("Frame") or slot:IsA("ImageLabel")) then
+            log("Found item slot: " .. slot:GetFullName())
+            return slot
         end
     end
-    return slots
+    
+    for _, child in ipairs(tradeUI:GetDescendants()) do
+        if child:IsA("Frame") and #child:GetChildren() > 0 then
+            for _, subChild in ipairs(child:GetChildren()) do
+                if subChild:IsA("ImageLabel") then
+                    log("Found item slot by structure: " .. child:GetFullName())
+                    return child
+                end
+            end
+        end
+    end
+    
+    return nil
 end
 
-function VisualScript:CreateFakeLayer(originalSlot)
-    -- إنشاء طبقة وهمية
-    local fakeLayer = Instance.new("Frame")
-    fakeLayer.Size = originalSlot.Size
-    fakeLayer.Position = originalSlot.Position
-    fakeLayer.BackgroundTransparency = 1
-    fakeLayer.ZIndex = 10
-    fakeLayer.Parent = originalSlot.Parent
+local function createFakeVisuals(originalSlot)
+    log("Creating enhanced visuals on top of: " .. originalSlot:GetFullName())
     
-    -- إضافة صورة مزيفة
+    local originalVisible = originalSlot.Visible
+    local originalTransparency = originalSlot.BackgroundTransparency
+    
+    local fakeLayer = Instance.new("Frame")
+    fakeLayer.Name = "VisualFakeLayer" -- تم التعديل
+    fakeLayer.Size = UDim2.new(1, 0, 1, 0)
+    fakeLayer.Position = UDim2.new(0, 0, 0, 0)
+    fakeLayer.BackgroundTransparency = 1
+    fakeLayer.ZIndex = originalSlot.ZIndex + 10
+    fakeLayer.Parent = originalSlot
+    
     local fakeImage = Instance.new("ImageLabel")
-    fakeImage.Size = UDim2.new(1, 0, 1, 0)
-    fakeImage.Position = UDim2.new(0, 0, 0, 0)
-    fakeImage.BackgroundTransparency = 1
-    fakeImage.Image = "rbxassetid://123456789" -- أيدي صورة مزيفة
+    fakeImage.Name = "FakeItemImage"
+    fakeImage.Size = UDim2.new(0.8, 0, 0.8, 0)
+    fakeImage.Position = UDim2.new(0.1, 0, 0.1, 0)
+    fakeImage.BackgroundTransparency = 0
+    fakeImage.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    fakeImage.Image = Config.FakeImageId
+    fakeImage.ScaleType = Enum.ScaleType.Fit
     fakeImage.Parent = fakeLayer
     
-    return fakeLayer
+    local fakeLabel = Instance.new("TextLabel")
+    fakeLabel.Name = "FakeItemName"
+    fakeLabel.Size = UDim2.new(1, 0, 0.2, 0)
+    fakeLabel.Position = UDim2.new(0, 0, 0.8, 0)
+    fakeLabel.BackgroundTransparency = 1
+    fakeLabel.Text = Config.TargetItemName
+    fakeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    fakeLabel.TextScaled = true
+    fakeLabel.Font = Enum.Font.SourceSansBold
+    fakeLabel.Parent = fakeLayer
+    
+    local multiplierLabel = Instance.new("TextLabel")
+    multiplierLabel.Name = "FakeMultiplier"
+    multiplierLabel.Size = UDim2.new(0.5, 0, 0.2, 0)
+    multiplierLabel.Position = UDim2.new(0.5, 0, 0, 0)
+    multiplierLabel.BackgroundTransparency = 0.5
+    multiplierLabel.BackgroundColor3 = Color3.fromRGB(255, 0, 255)
+    multiplierLabel.Text = Config.FakeMultiplierText
+    multiplierLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    multiplierLabel.TextScaled = true
+    multiplierLabel.Font = Enum.Font.SourceSansBold
+    fakeLayer.Parent = fakeLayer
+    
+    originalSlot.Visible = false
+    
+    local connection
+    connection = RunService.Heartbeat:Connect(function()
+        if fakeLayer and fakeLayer.Parent then
+            fakeLayer.ZIndex = 1000
+        else
+            if connection then
+                connection:Disconnect()
+            end
+        end
+    end)
+    
+    log("Enhanced visuals created successfully.")
+    return fakeLayer, connection
 end
 
-function VisualScript:ApplyVisualDeception()
-    local tradeWindow = self:FindTradeWindow()
-    if not tradeWindow then return end
+local function executeVisualDeception()
+    log("Starting visual enhancement process...")
     
-    local slots = self:GetItemSlots(tradeWindow)
-    if #slots == 0 then return end
+    local tradeUI = findTradeUI()
+    if not tradeUI then
+        log("Trade UI not found. Retrying...")
+        return
+    end
     
-    -- اختيار أول خانة للتلاعب
-    local targetSlot = slots[1]
+    local itemSlot = getFirstItemSlot(tradeUI)
+    if not itemSlot then
+        log("Item slot not found inside the trade UI.")
+        return
+    end
     
-    -- إنشاء الطبقة الوهمية
-    local fakeLayer = self:CreateFakeLayer(targetSlot)
+    if itemSlot:FindFirstChild("VisualFakeLayer") then -- تم التعديل
+        log("Enhanced layer already exists. Aborting.")
+        return
+    end
     
-    -- إخفاء العنصر الأصلي
-    targetSlot.Visible = false
+    createFakeVisuals(itemSlot)
+    log("Visual enhancement applied successfully.")
+end
+
+local function monitorForTrade()
+    log("Starting trade monitor loop.")
     
-    -- عرض العنصر المزيف
-    fakeLayer.Visible = true
+    while Config.Enabled do
+        wait(1.5)
+        
+        if not Config.Enabled then
+            log("Script disabled. Stopping monitor.")
+            break
+        end
+        
+        log("Checking for trade window...")
+        executeVisualDeception()
+    end
+end
+
+local function createUI()
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "TradeVisualUI" -- تم التعديل
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    ScreenGui.ResetOnSpawn = false
     
-    -- تثبيت العرض
-    game:GetService("RunService").Heartbeat:Connect(function()
-        if fakeLayer and fakeLayer.Parent then
-            -- الحفاظ على الوهم
-            fakeLayer.ZIndex = 10
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Name = "MainFrame"
+    MainFrame.Parent = ScreenGui
+    MainFrame.Size = UDim2.new(0, 220, 0, 120)
+    MainFrame.Position = UDim2.new(0, 10, 0, 100)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    MainFrame.BorderSizePixel = 0
+    MainFrame.Active = true
+    MainFrame.Draggable = true
+    
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 10)
+    Corner.Parent = MainFrame
+    
+    local TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Name = "TitleLabel"
+    TitleLabel.Parent = MainFrame
+    TitleLabel.Size = UDim2.new(1, 0, 0.4, 0)
+    TitleLabel.Position = UDim2.new(0, 0, 0, 0)
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.Text = "Trade Visual v2" -- تم التعديل
+    TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TitleLabel.Font = Enum.Font.SourceSansBold
+    TitleLabel.TextScaled = true
+    
+    local StatusLabel = Instance.new("TextLabel")
+    StatusLabel.Name = "StatusLabel"
+    StatusLabel.Parent = MainFrame
+    StatusLabel.Size = UDim2.new(1, 0, 0.3, 0)
+    StatusLabel.Position = UDim2.new(0, 0, 0.4, 0)
+    StatusLabel.BackgroundTransparency = 1
+    StatusLabel.Text = "Status: Monitoring..."
+    StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+    StatusLabel.Font = Enum.Font.SourceSans
+    StatusLabel.TextScaled = true
+    
+    local TargetLabel = Instance.new("TextLabel")
+    TargetLabel.Name = "TargetLabel"
+    TargetLabel.Parent = MainFrame
+    TargetLabel.Size = UDim2.new(1, 0, 0.3, 0)
+    TargetLabel.Position = UDim2.new(0, 0, 0.7, 0)
+    TargetLabel.BackgroundTransparency = 1
+    TargetLabel.Text = "Target: " .. Config.TargetItemName
+    TargetLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+    TargetLabel.Font = Enum.Font.SourceSans
+    TargetLabel.TextScaled = true
+    
+    log("UI Created Successfully.")
+end
+
+local function startScript()
+    log("Trade Visual Script v2 Loaded.") -- تم التعديل
+    createUI()
+    monitorForTrade()
+end
+
+local function setupToggle()
+    local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+    local ui = playerGui:WaitForChild("TradeVisualUI") -- تم التعديل
+    local mainFrame = ui:WaitForChild("MainFrame")
+    
+    mainFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            Config.Enabled = not Config.Enabled
+            local statusLabel = mainFrame:WaitForChild("StatusLabel")
+            
+            if Config.Enabled then
+                statusLabel.Text = "Status: Monitoring..."
+                statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                log("Script Re-enabled. Restarting monitor.")
+                monitorForTrade()
+            else
+                statusLabel.Text = "Status: Disabled"
+                statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+                log("Script Disabled by user.")
+            end
         end
     end)
 end
 
-function VisualScript:MonitorTradeState()
-    -- مراقبة حالة الترايد
-    while Config.Enabled do
-        local tradeWindow = self:FindTradeWindow()
-        if tradeWindow then
-            -- التحقق من وجود عداد أو زر قبول
-            local acceptButton = tradeWindow:FindFirstChild("Accept")
-            local countdown = tradeWindow:FindFirstChild("Countdown")
-            
-            if acceptButton or countdown then
-                -- تطبيق الخداع البصري
-                self:ApplyVisualDeception()
-                break
-            end
-        end
-        wait(0.5)
-    end
+local function finalize()
+    setupToggle()
+    warn("[Trade Visual]: Script is fully active. Click the UI to toggle on/off.") -- تم التعديل
+    warn("[Trade Visual]: Waiting for trade window to appear...") -- تم التعديل
 end
 
--- تشغيل السكربت
-function VisualScript:Start()
-    if Config.DebugMode then
-        print("[Brainrot Visual] Script Started")
-        print("[Brainrot Visual] Target: " .. Config.TargetItem)
-        print("[Brainrot Visual] Multiplier: " .. Config.FakeMultiplier)
-    end
-    
-    -- بدء المراقبة
-    self:MonitorTradeState()
-end
-
--- نقطة البداية
-VisualScript:Start()
-
--- واجهة بسيطة للمستخدم
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-
-local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 200, 0, 100)
-Frame.Position = UDim2.new(0, 10, 0, 100)
-Frame.BackgroundColor3 = Color3.new(0, 0, 0)
-Frame.BackgroundTransparency = 0.5
-Frame.Parent = ScreenGui
-
-local Label = Instance.new("TextLabel")
-Label.Size = UDim2.new(1, 0, 1, 0)
-Label.Position = UDim2.new(0, 0, 0, 0)
-Label.BackgroundTransparency = 1
-Label.Text = "Brainrot Visual\nActive"
-Label.TextColor3 = Color3.new(0, 1, 0)
-Label.Font = Enum.Font.SourceSansBold
-Label.TextSize = 18
-Label.Parent = Frame
-
-print("[Brainrot Visual] Script Loaded Successfully")
+startScript()
+finalize()
