@@ -1,112 +1,87 @@
--- [ الخدمات الأساسية ]
+-- [ الخدمات ]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Player = Players.LocalPlayer
 
--- [ إعدادات المهمة ]
+-- [ الإعدادات الاحترافية ]
 local Config = {
-    AutoFarm = true,
-    Desync = true,
-    AntiKick = true, -- تفعيل منع الطرد
-    DodgeRange = 15,
-    Speed = math.random(45, 55), -- سرعة متغيرة لتبدو بشرية
-    BaseLocation = Vector3.new(100, 10, 100), -- ضع إحداثيات قاعدتك هنا
-    BrainrotAnchor = "BrainrotPartName" -- اسم الغرض المستهدف
+    AutoSteal = true,
+    GhostMode = true, -- ميزة الديسينك (الجلتش)
+    AntiKick = true,
+    Speed = 52,
+    BaseLocation = Vector3.new(0, 0, 0), -- غيرها بإحداثيات قاعدتك
+    TargetName = "Brainrot" -- اسم الغرض في اللعبة
 }
 
--- ==========================================
--- [ 1. نظام Anti-Kick (المستوى المتقدم) ]
--- ==========================================
+-- [ 1. نظام الحماية الشاملة (Anti-Kick) ]
 if Config.AntiKick then
     local mt = getrawmetatable(game)
-    local oldNamecall = mt.__namecall
     setreadonly(mt, false)
-
+    local old = mt.__namecall
     mt.__namecall = newcclosure(function(self, ...)
         local method = getnamecallmethod()
-        local args = {...}
-
-        -- إذا حاولت اللعبة استدعاء أمر Kick، السكربت سيقوم بإيقافه فوراً
-        if tostring(method) == "Kick" or tostring(method) == "kick" then
-            warn("🛡️ تم إحباط محاولة طرد من السيرفر!")
-            return nil 
-        end
-
-        return oldNamecall(self, unpack(args))
+        if method == "Kick" or method == "kick" then return nil end
+        return old(self, ...)
     end)
     setreadonly(mt, true)
-    print("✅ Anti-Kick System: ACTIVE")
 end
 
--- ==========================================
--- [ 2. محرك الحركة والديسينك ]
--- ==========================================
-
--- نظام الديسينك (التلاعب بالـ Hitbox)
-local function ApplyDesync()
-    if Config.Desync then
-        local root = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
-        if root then
-            local oldV = root.Velocity
-            -- سرعة وهمية مشتتة للسيرفر
-            root.Velocity = Vector3.new(math.random(-200, 200), 0, math.random(-200, 200))
-            RunService.RenderStepped:Wait()
-            root.Velocity = oldV
-        end
+-- [ 2. ميزة الديسينك المتقدمة (تظهرك كجليتش للآخرين) ]
+-- [00:00:49] كما في الفيديو: تجعل الخصم يضرب الهواء
+RunService.Heartbeat:Connect(function()
+    if Config.GhostMode and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+        local root = Player.Character.HumanoidRootPart
+        -- تزييف السرعة المتجهة للسيرفر (Desync)
+        local rawVelocity = root.Velocity
+        root.Velocity = Vector3.new(math.random(-300, 300), -100, math.random(-300, 300))
+        RunService.RenderStepped:Wait()
+        root.Velocity = rawVelocity
     end
-end
+end)
 
--- الانتقال السلس (Tweening) مع تجنب الاكتشاف
-local function SmartMoveTo(targetPos)
+-- [ 3. محرك الحركة السلس (Tween Engine) ]
+local function MoveTo(pos)
     local root = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
     if not root then return end
-
-    local distance = (root.Position - targetPos).Magnitude
-    local duration = distance / Config.Speed
-    
-    -- استخدام EasingStyle لجعل الحركة "طبيعية" (تسارع وتباطؤ)
-    local info = TweenInfo.new(duration, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-    local tween = TweenService:Create(root, info, {CFrame = CFrame.new(targetPos)})
-    
+    local dist = (root.Position - pos).Magnitude
+    local info = TweenInfo.new(dist/Config.Speed, Enum.EasingStyle.Sine)
+    local tween = TweenService:Create(root, info, {CFrame = CFrame.new(pos)})
     tween:Play()
     return tween
 end
 
--- ==========================================
--- [ 3. دورة العمل: سرقة -> قاعدة ]
--- ==========================================
-
-local function MissionLoop()
-    while Config.AutoFarm do
-        task.wait(1.5) -- انتظار بسيط بين الدورات لتقليل الضغط
-        
-        -- البحث عن الهدف (البراينروت)
-        local target = workspace:FindFirstChild(Config.BrainrotAnchor, true)
-        
-        if target and target:IsA("BasePart") then
-            print("🚀 مستهدف: " .. target.Name .. " | جاري التحرك...")
-            
-            -- الذهاب للهدف
-            local move = SmartMoveTo(target.Position)
-            if move then move.Completed:Wait() end
-            
-            task.wait(0.7) -- وقت لالتقاط الغرض
-            
-            -- العودة للقاعدة
-            print("📦 تم الاستحواذ! العودة للقاعدة...")
-            local back = SmartMoveTo(Config.BaseLocation)
-            if back then back.Completed:Wait() end
-            
-            print("💰 تمت المهمة بنجاح.")
-        else
-            warn("🔍 لم يتم العثور على هدف، جاري إعادة الفحص...")
+-- [ 4. ميزة الـ Remote Steal (السرقة الذكية) ]
+local function AttemptRemoteSteal(target)
+    -- محاولة إرسال إشارة السرقة مباشرة للسيرفر (بدون الحاجة للمس دقيق)
+    local events = game:GetService("ReplicatedStorage"):GetDescendants()
+    for _, v in pairs(events) do
+        if v:IsA("RemoteEvent") and (v.Name:lower():find("steal") or v.Name:lower():find("collect")) then
+            v:FireServer(target)
         end
     end
 end
 
--- [ التشغيل النهائي ]
-RunService.Heartbeat:Connect(ApplyDesync)
-task.spawn(MissionLoop)
-
-print("💎 Brainrot PRO Suite with Anti-Kick Loaded!")
+-- [ 5. الحلقة المركزية (العمل التلقائي) ]
+task.spawn(function()
+    while Config.AutoSteal do
+        task.wait(1)
+        -- البحث عن أقرب هدف
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj.Name:find(Config.TargetName) and obj:IsA("BasePart") then
+                -- الانتقال لمكان الهدف
+                local m = MoveTo(obj.Position + Vector3.new(0, 2, 0))
+                if m then m.Completed:Wait() end
+                
+                -- تنفيذ السرقة (فيزيائياً وعن بعد)
+                AttemptRemoteSteal(obj)
+                task.wait(0.5)
+                
+                -- العودة للقاعدة
+                local b = MoveTo(Config.BaseLocation)
+                if b then b.Completed:Wait() end
+                break
+            end
+        end
+    end
+end)
