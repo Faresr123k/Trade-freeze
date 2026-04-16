@@ -1,56 +1,112 @@
+-- [ الخدمات الأساسية ]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-
+local TweenService = game:GetService("TweenService")
 local Player = Players.LocalPlayer
-local Character = Player.Character or Player.CharacterAdded:Wait()
-local Humanoid = Character:WaitForChild("Humanoid")
 
--- إعدادات السكربت
-local Settings = {
-    Enabled = true,
-    DodgeRange = 20, -- المسافة التي سيتم فيها تفادي الضربات
-    DodgeSpeed = 50, -- سرعة التفادي
-    DodgeDelay = 0.2 -- تأخير بين محاولات التفادي
+-- [ إعدادات المهمة ]
+local Config = {
+    AutoFarm = true,
+    Desync = true,
+    AntiKick = true, -- تفعيل منع الطرد
+    DodgeRange = 15,
+    Speed = math.random(45, 55), -- سرعة متغيرة لتبدو بشرية
+    BaseLocation = Vector3.new(100, 10, 100), -- ضع إحداثيات قاعدتك هنا
+    BrainrotAnchor = "BrainrotPartName" -- اسم الغرض المستهدف
 }
 
--- دالة التفادي من ضربات الأعداء
-local function DodgeAttacks()
-    if not Settings.Enabled then return end
-    
-    for _, otherPlayer in pairs(Players:GetPlayers()) do
-        if otherPlayer ~= Player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local enemyHRP = otherPlayer.Character.HumanoidRootPart
-            local myHRP = Character.HumanoidRootPart
-            
-            local distance = (myHRP.Position - enemyHRP.Position).Magnitude
-            
-            -- إذا كان العدو قريبًا وفي نطاق الهجوم
-            if distance <= Settings.DodgeRange then
-                -- حساب اتجاه التفادي (بعيدًا عن العدو)
-                local dodgeDirection = (myHRP.Position - enemyHRP.Position).Unit
-                local newCFrame = CFrame.new(myHRP.Position + dodgeDirection * Settings.DodgeSpeed * Settings.DodgeDelay)
-                
-                -- تطبيق الحركة السريعة (Teleport/Desync)
-                myHRP.CFrame = newCFrame
-                
-                -- رسالة تأكيد (يمكن إزالتها)
-                print("Dodge activated! Distance: " .. math.floor(distance))
-            end
+-- ==========================================
+-- [ 1. نظام Anti-Kick (المستوى المتقدم) ]
+-- ==========================================
+if Config.AntiKick then
+    local mt = getrawmetatable(game)
+    local oldNamecall = mt.__namecall
+    setreadonly(mt, false)
+
+    mt.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        local args = {...}
+
+        -- إذا حاولت اللعبة استدعاء أمر Kick، السكربت سيقوم بإيقافه فوراً
+        if tostring(method) == "Kick" or tostring(method) == "kick" then
+            warn("🛡️ تم إحباط محاولة طرد من السيرفر!")
+            return nil 
+        end
+
+        return oldNamecall(self, unpack(args))
+    end)
+    setreadonly(mt, true)
+    print("✅ Anti-Kick System: ACTIVE")
+end
+
+-- ==========================================
+-- [ 2. محرك الحركة والديسينك ]
+-- ==========================================
+
+-- نظام الديسينك (التلاعب بالـ Hitbox)
+local function ApplyDesync()
+    if Config.Desync then
+        local root = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            local oldV = root.Velocity
+            -- سرعة وهمية مشتتة للسيرفر
+            root.Velocity = Vector3.new(math.random(-200, 200), 0, math.random(-200, 200))
+            RunService.RenderStepped:Wait()
+            root.Velocity = oldV
         end
     end
 end
 
--- تشغيل التفادي بشكل مستمر
-RunService.Heartbeat:Connect(DodgeAttacks)
+-- الانتقال السلس (Tweening) مع تجنب الاكتشاف
+local function SmartMoveTo(targetPos)
+    local root = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
 
--- واجهة بسيطة للتحكم (اختياري)
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed and input.KeyCode == Enum.KeyCode.F then
-        Settings.Enabled = not Settings.Enabled
-        print("Dodge System: " .. (Settings.Enabled and "ON" or "OFF"))
+    local distance = (root.Position - targetPos).Magnitude
+    local duration = distance / Config.Speed
+    
+    -- استخدام EasingStyle لجعل الحركة "طبيعية" (تسارع وتباطؤ)
+    local info = TweenInfo.new(duration, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+    local tween = TweenService:Create(root, info, {CFrame = CFrame.new(targetPos)})
+    
+    tween:Play()
+    return tween
+end
+
+-- ==========================================
+-- [ 3. دورة العمل: سرقة -> قاعدة ]
+-- ==========================================
+
+local function MissionLoop()
+    while Config.AutoFarm do
+        task.wait(1.5) -- انتظار بسيط بين الدورات لتقليل الضغط
+        
+        -- البحث عن الهدف (البراينروت)
+        local target = workspace:FindFirstChild(Config.BrainrotAnchor, true)
+        
+        if target and target:IsA("BasePart") then
+            print("🚀 مستهدف: " .. target.Name .. " | جاري التحرك...")
+            
+            -- الذهاب للهدف
+            local move = SmartMoveTo(target.Position)
+            if move then move.Completed:Wait() end
+            
+            task.wait(0.7) -- وقت لالتقاط الغرض
+            
+            -- العودة للقاعدة
+            print("📦 تم الاستحواذ! العودة للقاعدة...")
+            local back = SmartMoveTo(Config.BaseLocation)
+            if back then back.Completed:Wait() end
+            
+            print("💰 تمت المهمة بنجاح.")
+        else
+            warn("🔍 لم يتم العثور على هدف، جاري إعادة الفحص...")
+        end
     end
-end)
+end
 
-print("Brainrot Anti-Hit with Dodge System loaded!")
-print("Press F to toggle dodge system")
+-- [ التشغيل النهائي ]
+RunService.Heartbeat:Connect(ApplyDesync)
+task.spawn(MissionLoop)
+
+print("💎 Brainrot PRO Suite with Anti-Kick Loaded!")
