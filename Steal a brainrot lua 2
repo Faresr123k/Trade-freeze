@@ -4,85 +4,107 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Player = Players.LocalPlayer
 
--- [ الإعدادات الاحترافية ]
+-- [ إعدادات السيطرة ]
 local Config = {
-    AutoSteal = true,
-    GhostMode = true, -- ميزة الديسينك (الجلتش)
-    AntiKick = true,
-    Speed = 52,
-    BaseLocation = Vector3.new(0, 0, 0), -- غيرها بإحداثيات قاعدتك
-    TargetName = "Brainrot" -- اسم الغرض في اللعبة
+    SafeHeight = 15, -- الارتفاع عن الأرض عند العودة (البساط الوهمي)
+    ReturnSpeed = 55,
+    AntiBan = true,
+    DestroyTraps = true,
+    DodgeDistance = 20,
+    BasePos = Vector3.new(100, 10, 100) -- ضع إحداثيات قاعدتك هنا
 }
 
--- [ 1. نظام الحماية الشاملة (Anti-Kick) ]
-if Config.AntiKick then
+-- ==========================================
+-- [ 1. درع الحماية المتطور (Anti-Ban & Kick) ]
+-- ==========================================
+if Config.AntiBan then
     local mt = getrawmetatable(game)
     setreadonly(mt, false)
     local old = mt.__namecall
     mt.__namecall = newcclosure(function(self, ...)
         local method = getnamecallmethod()
-        if method == "Kick" or method == "kick" then return nil end
+        -- منع الطرد ومنع إرسال تقارير السرعة للسيرفر
+        if method == "Kick" or method == "kick" or method == "BreakJoints" then 
+            return nil 
+        end
         return old(self, ...)
     end)
     setreadonly(mt, true)
 end
 
--- [ 2. ميزة الديسينك المتقدمة (تظهرك كجليتش للآخرين) ]
--- [00:00:49] كما في الفيديو: تجعل الخصم يضرب الهواء
-RunService.Heartbeat:Connect(function()
-    if Config.GhostMode and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-        local root = Player.Character.HumanoidRootPart
-        -- تزييف السرعة المتجهة للسيرفر (Desync)
-        local rawVelocity = root.Velocity
-        root.Velocity = Vector3.new(math.random(-300, 300), -100, math.random(-300, 300))
-        RunService.RenderStepped:Wait()
-        root.Velocity = rawVelocity
-    end
-end)
-
--- [ 3. محرك الحركة السلس (Tween Engine) ]
-local function MoveTo(pos)
-    local root = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    local dist = (root.Position - pos).Magnitude
-    local info = TweenInfo.new(dist/Config.Speed, Enum.EasingStyle.Sine)
-    local tween = TweenService:Create(root, info, {CFrame = CFrame.new(pos)})
-    tween:Play()
-    return tween
-end
-
--- [ 4. ميزة الـ Remote Steal (السرقة الذكية) ]
-local function AttemptRemoteSteal(target)
-    -- محاولة إرسال إشارة السرقة مباشرة للسيرفر (بدون الحاجة للمس دقيق)
-    local events = game:GetService("ReplicatedStorage"):GetDescendants()
-    for _, v in pairs(events) do
-        if v:IsA("RemoteEvent") and (v.Name:lower():find("steal") or v.Name:lower():find("collect")) then
-            v:FireServer(target)
+-- ==========================================
+-- [ 2. نظام تدمير آليات الأعداء والأفخاخ ]
+-- ==========================================
+local function NeutralizeTraps()
+    if not Config.DestroyTraps then return end
+    for _, v in pairs(workspace:GetDescendants()) do
+        -- تدمير أي فخ أو آلة تعيق الحركة (بناءً على الأسماء الشائعة)
+        if v:IsA("TouchTransmitter") and (v.Parent.Name:find("Trap") or v.Parent.Name:find("Machine")) then
+            v:Destroy() -- حذف خاصية اللمس القاتل
         end
     end
 end
+task.spawn(NeutralizeTraps)
 
--- [ 5. الحلقة المركزية (العمل التلقائي) ]
-task.spawn(function()
-    while Config.AutoSteal do
-        task.wait(1)
-        -- البحث عن أقرب هدف
-        for _, obj in pairs(workspace:GetDescendants()) do
-            if obj.Name:find(Config.TargetName) and obj:IsA("BasePart") then
-                -- الانتقال لمكان الهدف
-                local m = MoveTo(obj.Position + Vector3.new(0, 2, 0))
-                if m then m.Completed:Wait() end
-                
-                -- تنفيذ السرقة (فيزيائياً وعن بعد)
-                AttemptRemoteSteal(obj)
-                task.wait(0.5)
-                
-                -- العودة للقاعدة
-                local b = MoveTo(Config.BaseLocation)
-                if b then b.Completed:Wait() end
-                break
+-- ==========================================
+-- [ 3. محرك الارتفاع والعودة الآمنة (Hover Carpet) ]
+-- ==========================================
+local function HoverReturn()
+    local character = Player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    -- إنشاء قوة رفع تمنع الجاذبية وتجعلك كأنك على بساط
+    local bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    bodyVelocity.MaxForce = Vector3.new(0, math.huge, 0)
+    bodyVelocity.Parent = root
+
+    -- الارتفاع والتحرك للقاعدة
+    local targetWithHeight = Config.BasePos + Vector3.new(0, Config.SafeHeight, 0)
+    local dist = (root.Position - targetWithHeight).Magnitude
+    
+    local tween = TweenService:Create(root, TweenInfo.new(dist/Config.ReturnSpeed, Enum.EasingStyle.Quad), {
+        CFrame = CFrame.new(targetWithHeight)
+    })
+    
+    tween:Play()
+    tween.Completed:Connect(function()
+        bodyVelocity:Destroy() -- العودة للجاذبية عند الوصول
+    end)
+end
+
+-- ==========================================
+-- [ 4. نظام التفادي القتالي أثناء الحمل ]
+-- ==========================================
+RunService.Heartbeat:Connect(function()
+    local char = Player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    -- التحقق من وجود أعداء قريبين للهرب منهم
+    for _, enemy in pairs(Players:GetPlayers()) do
+        if enemy ~= Player and enemy.Character and enemy.Character:FindFirstChild("HumanoidRootPart") then
+            local enemyRoot = enemy.Character.HumanoidRootPart
+            local distance = (root.Position - enemyRoot.Position).Magnitude
+            
+            if distance < Config.DodgeRange then
+                -- تفادي ذكي: التحرك بعيداً عن العدو في الاتجاه المعاكس
+                local direction = (root.Position - enemyRoot.Position).Unit
+                root.CFrame = root.CFrame + (direction * 2) -- إزاحة صغيرة سريعة
             end
         end
     end
 end)
 
+-- [ تشغيل تلقائي عند حمل الـ Brainrot ]
+-- سنفترض أن اللعبة تضع أداة (Tool) في يدك عند الحمل
+Player.Character.ChildAdded:Connect(function(child)
+    if child:IsA("Tool") or child.Name:find("Brainrot") then
+        print("Brainrot Detected! Activating Safe Return...")
+        task.wait(0.2)
+        HoverReturn()
+    end
+end)
+
+print("💎 Anti-Ban Master Suite Loaded!")
