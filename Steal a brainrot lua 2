@@ -4,107 +4,128 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Player = Players.LocalPlayer
 
--- [ إعدادات السيطرة ]
+-- [ إعدادات المنظومة ]
 local Config = {
-    SafeHeight = 15, -- الارتفاع عن الأرض عند العودة (البساط الوهمي)
-    ReturnSpeed = 55,
-    AntiBan = true,
-    DestroyTraps = true,
-    DodgeDistance = 20,
-    BasePos = Vector3.new(100, 10, 100) -- ضع إحداثيات قاعدتك هنا
+    AutoFarm = true,
+    ReturnHeight = 35, -- ارتفاع شاهق لتجنب كل شيء
+    Speed = 60,
+    TargetName = "Brainrot",
+    State = "Idle", -- Idle, Moving, Returning
+    AntiAdmin = true -- توقف السكربت عند دخول مراقب
 }
 
--- ==========================================
--- [ 1. درع الحماية المتطور (Anti-Ban & Kick) ]
--- ==========================================
-if Config.AntiBan then
-    local mt = getrawmetatable(game)
-    setreadonly(mt, false)
-    local old = mt.__namecall
-    mt.__namecall = newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        -- منع الطرد ومنع إرسال تقارير السرعة للسيرفر
-        if method == "Kick" or method == "kick" or method == "BreakJoints" then 
-            return nil 
+-- [ 1. نظام كشف المراقبين (Anti-Admin) ]
+if Config.AntiAdmin then
+    Players.PlayerAdded:Connect(function(plr)
+        -- فحص الرتبة أو الشارات (Badges) إذا كان أدمن
+        if plr:GetRankInGroup(0) > 200 or plr.AccountAge < 1 then 
+            Config.AutoFarm = false
+            print("🚨 Admin/Sus detected! Stopping script for safety.")
         end
-        return old(self, ...)
     end)
-    setreadonly(mt, true)
 end
 
--- ==========================================
--- [ 2. نظام تدمير آليات الأعداء والأفخاخ ]
--- ==========================================
-local function NeutralizeTraps()
-    if not Config.DestroyTraps then return end
+-- [ 2. كاشف القاعدة الديناميكي (المطور) ]
+local function GetMyBase()
+    -- يبحث عن أي مكان يحمل اسمك أو اسم العرض الخاص بك
     for _, v in pairs(workspace:GetDescendants()) do
-        -- تدمير أي فخ أو آلة تعيق الحركة (بناءً على الأسماء الشائعة)
-        if v:IsA("TouchTransmitter") and (v.Parent.Name:find("Trap") or v.Parent.Name:find("Machine")) then
-            v:Destroy() -- حذف خاصية اللمس القاتل
+        if v:IsA("Model") or v:IsA("BasePart") then
+            if v.Name:find(Player.Name) or v.Name:find(Player.DisplayName) then
+                -- التأكد أن الموقع ثابت وليس جزءاً من جسمك
+                if not v:IsDescendantOf(Player.Character) then
+                    return v.Position
+                end
+            end
+        end
+    end
+    -- كحل أخير: مكان الرسبون
+    return Player.RespawnLocation and Player.RespawnLocation.Position or Vector3.new(0,0,0)
+end
+
+-- [ 3. نظام الشبح (Noclip) ]
+-- يجعل شخصيتك تمر عبر الجدران أثناء العودة
+local function SetNoclip(state)
+    for _, part in pairs(Player.Character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = not state
         end
     end
 end
-task.spawn(NeutralizeTraps)
 
--- ==========================================
--- [ 3. محرك الارتفاع والعودة الآمنة (Hover Carpet) ]
--- ==========================================
-local function HoverReturn()
-    local character = Player.Character
-    local root = character and character:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-
-    -- إنشاء قوة رفع تمنع الجاذبية وتجعلك كأنك على بساط
-    local bodyVelocity = Instance.new("BodyVelocity")
-    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-    bodyVelocity.MaxForce = Vector3.new(0, math.huge, 0)
-    bodyVelocity.Parent = root
-
-    -- الارتفاع والتحرك للقاعدة
-    local targetWithHeight = Config.BasePos + Vector3.new(0, Config.SafeHeight, 0)
-    local dist = (root.Position - targetWithHeight).Magnitude
+-- [ 4. محرك العودة "فوق السحاب" (Ghost Return) ]
+local function UltimateReturn()
+    if Config.State == "Returning" then return end
+    Config.State = "Returning"
     
-    local tween = TweenService:Create(root, TweenInfo.new(dist/Config.ReturnSpeed, Enum.EasingStyle.Quad), {
-        CFrame = CFrame.new(targetWithHeight)
-    })
+    local root = Player.Character:WaitForChild("HumanoidRootPart")
+    local basePos = GetMyBase()
     
-    tween:Play()
-    tween.Completed:Connect(function()
-        bodyVelocity:Destroy() -- العودة للجاذبية عند الوصول
-    end)
+    -- تفعيل وضع الشبح
+    SetNoclip(true)
+    
+    -- المرحلة أ: الارتفاع العمودي السريع
+    local upPos = root.Position + Vector3.new(0, Config.ReturnHeight, 0)
+    local t1 = TweenService:Create(root, TweenInfo.new(1.2, Enum.EasingStyle.Quart), {CFrame = CFrame.new(upPos)})
+    t1:Play()
+    t1.Completed:Wait()
+
+    -- المرحلة ب: الطيران المباشر نحو القاعدة (فوق الجدران والفخاخ)
+    local targetAir = Vector3.new(basePos.X, root.Position.Y, basePos.Z)
+    local dist = (root.Position - targetAir).Magnitude
+    local t2 = TweenService:Create(root, TweenInfo.new(dist/Config.Speed, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetAir)})
+    t2:Play()
+    t2.Completed:Wait()
+
+    -- المرحلة ج: الهبوط الدقيق داخل القاعدة
+    local t3 = TweenService:Create(root, TweenInfo.new(1.5, Enum.EasingStyle.Bounce), {CFrame = CFrame.new(basePos + Vector3.new(0, 3, 0))})
+    t3:Play()
+    t3.Completed:Wait()
+
+    -- إلغاء وضع الشبح
+    SetNoclip(false)
+    Config.State = "Idle"
 end
 
--- ==========================================
--- [ 4. نظام التفادي القتالي أثناء الحمل ]
--- ==========================================
-RunService.Heartbeat:Connect(function()
-    local char = Player.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
+-- [ 5. المعالج الذكي للسرقة ]
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if Config.AutoFarm and Config.State == "Idle" then
+            -- البحث عن أقرب براينروت
+            local target = nil
+            local minDist = math.huge
+            for _, v in pairs(workspace:GetDescendants()) do
+                if v.Name:find(Config.TargetName) and v:IsA("BasePart") then
+                    local d = (Player.Character.HumanoidRootPart.Position - v.Position).Magnitude
+                    if d < minDist then
+                        minDist = d
+                        target = v
+                    end
+                end
+            end
 
-    -- التحقق من وجود أعداء قريبين للهرب منهم
-    for _, enemy in pairs(Players:GetPlayers()) do
-        if enemy ~= Player and enemy.Character and enemy.Character:FindFirstChild("HumanoidRootPart") then
-            local enemyRoot = enemy.Character.HumanoidRootPart
-            local distance = (root.Position - enemyRoot.Position).Magnitude
-            
-            if distance < Config.DodgeRange then
-                -- تفادي ذكي: التحرك بعيداً عن العدو في الاتجاه المعاكس
-                local direction = (root.Position - enemyRoot.Position).Unit
-                root.CFrame = root.CFrame + (direction * 2) -- إزاحة صغيرة سريعة
+            if target and minDist < 500 then
+                Config.State = "Moving"
+                -- الذهاب للهدف
+                local t = TweenService:Create(Player.Character.HumanoidRootPart, TweenInfo.new(minDist/Config.Speed, Enum.EasingStyle.Sine), {CFrame = CFrame.new(target.Position)})
+                t:Play()
+                t.Completed:Wait()
+                
+                -- الانتظار للتأكد من الحمل (ستتفعل UltimateReturn عبر ChildAdded)
+                task.wait(1)
+                if Config.State == "Moving" then Config.State = "Idle" end
             end
         end
     end
 end)
 
--- [ تشغيل تلقائي عند حمل الـ Brainrot ]
--- سنفترض أن اللعبة تضع أداة (Tool) في يدك عند الحمل
+-- [ 6. حساس الحمل الفوري ]
 Player.Character.ChildAdded:Connect(function(child)
-    if child:IsA("Tool") or child.Name:find("Brainrot") then
-        print("Brainrot Detected! Activating Safe Return...")
-        task.wait(0.2)
-        HoverReturn()
+    -- إذا أمسكت البراينروت بأي طريقة، ابدأ العودة فوراً
+    if child.Name:find("Brainrot") or child:IsA("Tool") then
+        task.wait(0.1)
+        UltimateReturn()
     end
 end)
 
-print("💎 Anti-Ban Master Suite Loaded!")
+print("🛡️ منظومة السيطرة الشاملة مفعمة بالعمل. وضع الشبح: جاهز.")
